@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  - job_name: showdown-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway:9101
+          - identity-service:9100
+          - player-service:9102
+          - matchmaking-service:9103
+          - match-service:9104
+  - job_name: rabbitmq
+    static_configs:
+      - targets: [rabbitmq:15692]
+  - job_name: redis
+    static_configs:
+      - targets: [redis-exporter:9121]
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - matchmaking-postgres-exporter:9187
+          - match-postgres-exporter:9187
+          - player-postgres-exporter:9187
+          - identity-postgres-exporter:9187

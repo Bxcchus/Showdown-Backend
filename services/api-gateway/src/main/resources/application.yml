@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER:http://localhost:9000}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:9000/oauth2/jwks}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: party-realtime
+              uri: ${PLAYER_WS_URI:ws://localhost:8083}
+              predicates:
+                - Path=/api/v2/realtime/party
+            - id: match-realtime
+              uri: ${MATCH_WS_URI:ws://localhost:8082}
+              predicates:
+                - Path=/api/v2/realtime/matches
+            - id: duel-watchers
+              uri: ${MATCH_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v2/watchers/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@watcherKeyResolver}"
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_WATCHERS_REPLENISH:20}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_WATCHERS_BURST:40}
+                    redis-rate-limiter.requestedTokens: 1
+            - id: players
+              uri: ${PLAYER_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/v2/players/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_PLAYERS_REPLENISH:10}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_PLAYERS_BURST:20}
+                    redis-rate-limiter.requestedTokens: 1
+            - id: player-internal
+              uri: ${PLAYER_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/v2/internal/players/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@watcherKeyResolver}"
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_PLAYER_INTERNAL_REPLENISH:5}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_PLAYER_INTERNAL_BURST:10}
+                    redis-rate-limiter.requestedTokens: 1
+            - id: matchmaking
+              uri: ${MATCHMAKING_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/v2/matchmaking/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_MATCHMAKING_REPLENISH:5}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_MATCHMAKING_BURST:10}
+                    redis-rate-limiter.requestedTokens: 1
+            - id: parties
+              uri: ${PLAYER_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/v2/parties/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_PARTIES_REPLENISH:10}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_PARTIES_BURST:20}
+                    redis-rate-limiter.requestedTokens: 1
+            - id: matches
+              uri: ${MATCH_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/v2/matches/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: ${RATE_LIMIT_MATCHES_REPLENISH:10}
+                    redis-rate-limiter.burstCapacity: ${RATE_LIMIT_MATCHES_BURST:20}
+                    redis-rate-limiter.requestedTokens: 1
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  - ${WEB_ORIGIN:http://localhost:3000}
+                allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
+                allowedHeaders: [Authorization, Content-Type, Idempotency-Key, X-Correlation-ID, Sec-WebSocket-Protocol]
+                exposedHeaders: [Location, X-Correlation-ID]
+                allowCredentials: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9101}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pinkward:
+  security:
+    audience: ${JWT_AUDIENCE:pinkward-api}

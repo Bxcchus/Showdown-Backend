@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: matchmaking-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/pinkward_matchmaking}
+    username: ${DATABASE_USERNAME:matchmaking_service}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+      connection-timeout: 3000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:matchmaking_service}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:Pinkward}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 500ms
+          multiplier: 2
+          max-interval: 5s
+          max-attempts: 3
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER:http://localhost:9000}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:9000/oauth2/jwks}
+
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9103}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pinkward:
+  security:
+    audience: ${JWT_AUDIENCE:pinkward-api}
+  matchmaking:
+    tick: ${MATCHMAKING_TICK:1s}
+    max-matches-per-tick: ${MATCHMAKING_MAX_MATCHES_PER_TICK:100}
+    role-widen-after: ${MATCHMAKING_ROLE_WIDEN_AFTER:30s}
+    mmr:
+      initial-range: ${MATCHMAKING_MMR_INITIAL_RANGE:100}
+      widen-step: ${MATCHMAKING_MMR_WIDEN_STEP:50}
+      widen-every: ${MATCHMAKING_MMR_WIDEN_EVERY:15s}
+      max-range: ${MATCHMAKING_MMR_MAX_RANGE:600}
+    local-bots:
+      enabled: ${LOCAL_BOTS_ENABLED:false}
+      fill-after: ${LOCAL_BOTS_FILL_AFTER:5s}
+  outbox:
+    tick: ${OUTBOX_TICK:250ms}

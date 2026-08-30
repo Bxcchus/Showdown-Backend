@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pinkward Showdown — Backend V2</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background: #0d0a12;
+      color: #f7f1fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 15% 10%, #712b6c55, transparent 38%),
+        radial-gradient(circle at 85% 90%, #d85b8d33, transparent 36%),
+        #0d0a12;
+    }
+    main {
+      width: min(760px, 100%);
+      padding: clamp(28px, 6vw, 56px);
+      border: 1px solid #ffffff18;
+      border-radius: 24px;
+      background: #17111fdd;
+      box-shadow: 0 24px 80px #0008;
+    }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: #ef8fba;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-size: .78rem;
+    }
+    h1 { margin: 0; font-size: clamp(2rem, 7vw, 4rem); line-height: 1; }
+    .lead { margin: 20px 0 28px; color: #cbbfd2; font-size: 1.05rem; line-height: 1.6; }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #ffffff0a;
+      border: 1px solid #ffffff12;
+    }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #e4b63f; box-shadow: 0 0 16px currentColor; }
+    .status.up .dot { background: #52d890; }
+    .status.down .dot { background: #ff6b7b; }
+    nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
+    a {
+      padding: 14px;
+      border-radius: 12px;
+      color: #f7d7e7;
+      background: #bd4c8120;
+      border: 1px solid #e77cab36;
+      text-decoration: none;
+      text-align: center;
+    }
+    a:hover { background: #bd4c8138; border-color: #e77cab70; }
+    code {
+      display: block;
+      margin-top: 24px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      border-radius: 12px;
+      color: #e9ddea;
+      background: #08060b;
+      border: 1px solid #ffffff12;
+    }
+    footer { margin-top: 22px; color: #8e8296; font-size: .86rem; }
+    @media (max-width: 620px) { nav { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Pinkward infrastructure</p>
+    <h1>Showdown</h1>
+    <p class="lead">
+      Le backend V2 fonctionne en local. Les routes métier restent protégées par OAuth2/OIDC et JWT.
+    </p>
+    <div class="status" id="status" role="status">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="status-text">Vérification des services…</span>
+    </div>
+    <nav aria-label="Points d’entrée techniques">
+      <a href="/actuator/health/readiness">Santé de l’API</a>
+      <a href="/.well-known/openid-configuration">Configuration OIDC</a>
+      <a href="/oauth2/jwks">Clés JWKS</a>
+    </nav>
+    <code>.\scripts\smoke-test.ps1</code>
+    <footer>API Gateway · Identity · Matchmaking · PostgreSQL · Redis · RabbitMQ</footer>
+  </main>
+  <script>
+    fetch('/actuator/health/readiness')
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(health => {
+        const ready = health.status === 'UP';
+        document.querySelector('#status').classList.add(ready ? 'up' : 'down');
+        document.querySelector('#status-text').textContent = ready
+          ? 'Tous les services essentiels sont disponibles'
+          : 'Un service essentiel est indisponible';
+      })
+      .catch(() => {
+        document.querySelector('#status').classList.add('down');
+        document.querySelector('#status-text').textContent = 'Impossible de lire l’état des services';
+      });
+  </script>
+</body>
+</html>

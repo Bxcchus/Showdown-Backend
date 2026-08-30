@@ -1,0 +1,58 @@
+groups:
+  - name: showdown-production
+    rules:
+      - alert: ShowdownTargetDown
+        expr: up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Une cible Showdown ne répond plus"
+          description: "{{ $labels.job }} / {{ $labels.instance }} est indisponible depuis 2 minutes."
+      - alert: GatewayServerErrors
+        expr: sum(rate(showdown_gateway_server_errors_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Erreurs 5xx soutenues au Gateway"
+      - alert: GatewayRateLimitPressure
+        expr: sum(increase(showdown_gateway_rate_limit_rejections_total[5m])) > 20
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Pression sur les limites de débit"
+      - alert: RepeatedAuthenticationFailures
+        expr: sum(increase(pinkward_identity_login_failures_total[5m])) > 10
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Échecs de connexion répétés"
+      - alert: RejectedAuthorizationScopes
+        expr: sum(increase(showdown_gateway_requests_total{status="403"}[5m])) > 10
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Refus de scope ou d’autorisation répétés"
+      - alert: ContradictoryMatchResults
+        expr: sum(increase(showdown_gateway_requests_total{status="409",route="matches"}[10m])) > 2
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "Résultats de match contradictoires"
+      - alert: RabbitQueueBacklog
+        expr: max(rabbitmq_queue_messages_ready) > 100
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Backlog RabbitMQ supérieur à 100 messages"
+      - alert: RedisMemoryPressure
+        expr: redis_memory_max_bytes > 0 and redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Redis dépasse 85 % de sa mémoire allouée"
+      - alert: PostgreSQLExporterDown
+        expr: pg_up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Une base PostgreSQL ne répond plus"

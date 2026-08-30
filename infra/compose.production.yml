@@ -1,0 +1,90 @@
+services:
+  caddy:
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SHOWDOWN_DOMAIN: ${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    deploy:
+      resources:
+        limits: { cpus: "0.50", memory: 256M }
+
+  web-app:
+    deploy:
+      resources:
+        limits: { cpus: "0.50", memory: 256M }
+
+  api-gateway:
+    environment:
+      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      WEB_ORIGIN: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+    deploy:
+      resources:
+        limits: { cpus: "1.00", memory: 768M }
+
+  identity-service:
+    environment:
+      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      LOCAL_IDENTITY_ENABLED: "false"
+      WATCHER_LOCAL_CLIENT_ENABLED: "false"
+      WEB_REDIRECT_URI: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}/oauth/callback
+      WEB_DEV_REDIRECT_URI: ""
+      SESSION_COOKIE_SECURE: "true"
+      SESSION_COOKIE_SAME_SITE: strict
+    deploy:
+      resources:
+        limits: { cpus: "0.75", memory: 768M }
+
+  player-service:
+    environment:
+      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      PARTY_LOCAL_SIMULATION: "false"
+      PINKWARD_WEB_ORIGINS: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+    deploy:
+      resources:
+        limits: { cpus: "0.75", memory: 768M }
+
+  matchmaking-service:
+    environment:
+      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      LOCAL_BOTS_ENABLED: "false"
+    deploy:
+      resources:
+        limits: { cpus: "1.00", memory: 1G }
+
+  match-service:
+    environment:
+      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      LOCAL_BOT_RESULTS_ENABLED: "false"
+      MATCH_MANUAL_RESULTS_ENABLED: "false"
+      PINKWARD_WEB_ORIGINS: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+    deploy:
+      resources:
+        limits: { cpus: "1.00", memory: 1G }
+
+  postgres:
+    deploy: { resources: { limits: { cpus: "0.75", memory: 1G } } }
+  match-postgres:
+    deploy: { resources: { limits: { cpus: "0.75", memory: 1G } } }
+  player-postgres:
+    deploy: { resources: { limits: { cpus: "0.75", memory: 1G } } }
+  identity-postgres:
+    deploy: { resources: { limits: { cpus: "0.75", memory: 1G } } }
+  redis:
+    deploy: { resources: { limits: { cpus: "0.50", memory: 256M } } }
+  rabbitmq:
+    deploy: { resources: { limits: { cpus: "0.75", memory: 768M } } }
+
+  alertmanager:
+    ports: !override []
+  prometheus:
+    ports: !override []
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,15 @@
+package lol.pinkward.showdown.match;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.time.Instant;
+import java.util.UUID;
+
+record WatcherTokenResponse(String token, UUID matchId, String role, Instant expiresAt) {}
+record WatcherAssignment(UUID matchId, String role, UUID ownPlayerId, String ownRiotId,
+        UUID opponentPlayerId, String opponentRiotId, String region, String lobbyName,
+        String lobbyPassword, String state, Instant expiresAt) {}
+record WatcherStateRequest(@NotBlank String state) {}
+record WatcherObservationRequest(@NotNull DuelObjective objective, @NotBlank String winnerRiotId,
+        @NotNull Instant observedAt) {}
+record WatcherObservationResponse(String status, DuelObjective objective, UUID winnerPlayerId) {}
