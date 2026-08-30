@@ -102,6 +102,7 @@ jobs:
         run: |
           ./scripts/test-local-security.ps1 -SkipActiveEnvironment
           ./scripts/test-production-security.ps1
+          ./scripts/test-production-oidc-configuration.ps1
       - name: Validate Compose
         run: docker compose --env-file infra/.env.example -f infra/compose.yml config --quiet
       - name: Build and pull every Compose image
@@ -124,3 +125,17 @@ jobs:
       - name: Run isolated 1v1 and 5v5 Docker MMR tests
         shell: pwsh
         run: ./scripts/test-docker-mmr.ps1
+      - name: Run the isolated external OIDC login flow
+        shell: pwsh
+        run: ./scripts/test-local-oidc.ps1
+      - name: Install pinned age backup tooling
+        run: |
+          curl --fail --silent --show-error --location \
+            --output /tmp/age-v1.3.2-linux-amd64.tar.gz \
+            https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  /tmp/age-v1.3.2-linux-amd64.tar.gz" | sha256sum --check
+          tar --extract --gzip --file /tmp/age-v1.3.2-linux-amd64.tar.gz --directory /tmp
+          sudo install --mode 0755 /tmp/age/age /tmp/age/age-keygen /usr/local/bin/
+      - name: Verify encrypted backup and isolated four-database restore
+        shell: pwsh
+        run: ./scripts/test-encrypted-backup-restore.ps1

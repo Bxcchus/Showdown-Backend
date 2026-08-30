@@ -2,7 +2,8 @@
 param(
     [ValidateRange(1, 365)][int]$RetentionDays = 14,
     [string]$EnvironmentFile,
-    [string[]]$ComposeFiles
+    [string[]]$ComposeFiles,
+    [ValidatePattern('^[a-z0-9][a-z0-9_-]{2,62}$')][string]$ProjectName
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,7 +31,11 @@ foreach ($composeFile in $resolvedComposeFiles) {
         throw "Compose file is missing: $composeFile"
     }
 }
-$composeArguments = @('compose', '--env-file', $envFile)
+$composeArguments = @('compose')
+if (-not [string]::IsNullOrWhiteSpace($ProjectName)) {
+    $composeArguments += @('--project-name', $ProjectName)
+}
+$composeArguments += @('--env-file', $envFile)
 foreach ($composeFile in $resolvedComposeFiles) { $composeArguments += @('-f', $composeFile) }
 New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
 $resolvedBackupRoot = (Resolve-Path -LiteralPath $backupRoot).Path

@@ -3,15 +3,18 @@ package lol.pinkward.showdown.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 
 class AuthorizationServerConfigurationTest {
@@ -93,11 +96,17 @@ class AuthorizationServerConfigurationTest {
     }
 
     @Test
-    void externalIdentityUsesProviderAndSubjectForAStablePlayerId() {
-        var principal = new DefaultOAuth2User(
-                Set.of(new SimpleGrantedAuthority("ROLE_USER")),
-                Map.of("sub", "stable-provider-subject", "preferred_username", "Alexis External"),
-                "sub");
+    void externalOidcLoginCarriesTheAuthorizationCodeFactor() {
+        var mapped = AuthorizationServerConfiguration.oidcAuthorizationCodeAuthorityMapper()
+                .mapAuthorities(Set.of(new SimpleGrantedAuthority("OIDC_USER")));
+
+        assertThat(mapped).extracting(authority -> authority.getAuthority())
+                .contains("OIDC_USER", FactorGrantedAuthority.AUTHORIZATION_CODE_AUTHORITY);
+    }
+
+    @Test
+    void externalIdentityUsesIssuerAndSubjectForAStablePlayerId() {
+        var principal = oidcUser("https://issuer-one.example", "stable-provider-subject", "Alexis External");
         var authentication = new OAuth2AuthenticationToken(
                 principal, principal.getAuthorities(), "production");
 
@@ -107,10 +116,42 @@ class AuthorizationServerConfigurationTest {
         assertThat(first.playerId()).isEqualTo(second.playerId());
         assertThat(first.displayName()).startsWith("Alexis External-").hasSizeLessThanOrEqualTo(24);
 
-        var otherProvider = new OAuth2AuthenticationToken(
-                principal, principal.getAuthorities(), "other-provider");
-        assertThat(AuthorizationServerConfiguration.playerIdentity(otherProvider).playerId())
-                .isNotEqualTo(first.playerId());
+        var renamedRegistration = new OAuth2AuthenticationToken(
+                principal, principal.getAuthorities(), "renamed-registration");
+        assertThat(AuthorizationServerConfiguration.playerIdentity(renamedRegistration).playerId())
+                .isEqualTo(first.playerId());
+    }
+
+    @Test
+    void twoIssuersWithTheSameSubjectProduceDifferentPlayers() {
+        var first = authentication("https://issuer-one.example", "shared-subject");
+        var second = authentication("https://issuer-two.example", "shared-subject");
+
+        assertThat(AuthorizationServerConfiguration.playerIdentity(first).playerId())
+                .isNotEqualTo(AuthorizationServerConfiguration.playerIdentity(second).playerId());
+    }
+
+    @Test
+    void oneIssuerWithDifferentSubjectsProducesDifferentPlayers() {
+        var first = authentication("https://issuer.example", "subject-one");
+        var second = authentication("https://issuer.example", "subject-two");
+
+        assertThat(AuthorizationServerConfiguration.playerIdentity(first).playerId())
+                .isNotEqualTo(AuthorizationServerConfiguration.playerIdentity(second).playerId());
+    }
+
+    @Test
+    void externalIdentityRejectsANonOidcPrincipal() {
+        var principal = new org.springframework.security.oauth2.core.user.DefaultOAuth2User(
+                Set.of(new SimpleGrantedAuthority("ROLE_USER")),
+                Map.of("sub", "subject"),
+                "sub");
+        var authentication = new OAuth2AuthenticationToken(
+                principal, principal.getAuthorities(), "production");
+
+        assertThatThrownBy(() -> AuthorizationServerConfiguration.playerIdentity(authentication))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("OIDC");
     }
 
     @Test
@@ -122,5 +163,23 @@ class AuthorizationServerConfigurationTest {
 
         assertThat(identity.displayName()).isEqualTo("local-player");
         assertThat(identity.playerId().toString()).isEqualTo("fab9a498-4a3c-3932-9f52-7cc417980275");
+    }
+
+    private static OAuth2AuthenticationToken authentication(String issuer, String subject) {
+        var principal = oidcUser(issuer, subject, "External Player");
+        return new OAuth2AuthenticationToken(principal, principal.getAuthorities(), "production");
+    }
+
+    private static DefaultOidcUser oidcUser(String issuer, String subject, String displayName) {
+        Instant now = Instant.now();
+        var idToken = new OidcIdToken(
+                "test-token-" + issuer + '-' + subject,
+                now,
+                now.plusSeconds(300),
+                Map.of(
+                        "iss", issuer,
+                        "sub", subject,
+                        "preferred_username", displayName));
+        return new DefaultOidcUser(Set.of(new SimpleGrantedAuthority("ROLE_USER")), idToken);
     }
 }
