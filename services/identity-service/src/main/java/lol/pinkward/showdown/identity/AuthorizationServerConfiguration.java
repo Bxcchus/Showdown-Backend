@@ -227,7 +227,10 @@ public class AuthorizationServerConfiguration {
                 .scope("match:ready")
                 .clientSettings(ClientSettings.builder()
                         .requireProofKey(true)
-                        .requireAuthorizationConsent(true)
+                        // GYMS.LOL Web is the first-party UI and always needs this exact,
+                        // server-controlled scope set. A second consent screen after Auth0
+                        // adds no meaningful choice and can strand the browser mid-login.
+                        .requireAuthorizationConsent(false)
                         .build())
                 .tokenSettings(publicTokenSettings)
                 .build();

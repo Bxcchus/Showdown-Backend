@@ -41,6 +41,7 @@ class AuthorizationServerConfigurationTest {
         assertThat(web.getAuthorizationGrantTypes())
                 .contains(AuthorizationGrantType.AUTHORIZATION_CODE, AuthorizationGrantType.REFRESH_TOKEN);
         assertThat(web.getClientSettings().isRequireProofKey()).isTrue();
+        assertThat(web.getClientSettings().isRequireAuthorizationConsent()).isFalse();
         assertThat(web.getRedirectUris())
                 .containsExactlyInAnyOrder(
                         "http://localhost:8088/oauth/callback",
