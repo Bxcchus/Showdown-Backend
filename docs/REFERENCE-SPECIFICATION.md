@@ -184,9 +184,9 @@ admis comme étape de transition.
 
 Domaines cibles :
 
-- play.pinkward.lol pour le web ;
+- gyms.lol pour le web ;
 - companion.pinkward.lol pour la démo/companion ;
-- api.pinkward.lol pour l’API ;
+- api.gyms.lol pour l’API ;
 - leurs équivalents sous staging.pinkward.lol.
 
 La production doit utiliser DNS proxy, SSL/TLS Full Strict, WAF, DDoS et bot
@@ -199,8 +199,8 @@ origin et, lorsque possible, filtrage firewall des plages Cloudflare. Seuls les
 proxies explicitement approuvés peuvent influencer X-Forwarded-For. Cloudflare
 ne remplace ni Spring Security, ni le firewall, ni les contrôles métier.
 
-Le domaine actuellement observable du backend est play.pinkward.lol. Le passage
-à api.pinkward.lol exige une migration coordonnée des clients, cookies, CORS,
+Le domaine public cible du web est gyms.lol. Le passage de l’API
+à api.gyms.lol exige une migration coordonnée des clients, cookies, CORS,
 WebSocket, CI/CD et DNS ; il ne doit pas être effectué isolément.
 
 ### 4.3 Caddy
@@ -827,8 +827,8 @@ dans les sections thématiques au lieu d’être répétées.
    monolithe modulaire est la phase actuelle ; les microservices sont la cible.
 2. « Créer Caddy/Gateway/RabbitMQ » contre absence de services réels : ils sont
    introduits par besoin et non simulés.
-3. Domaine cible api.pinkward.lol contre backend actuel play.pinkward.lol :
-   play reste compatible jusqu’à une migration coordonnée.
+3. Domaines cibles gyms.lol et api.gyms.lol : la bascule doit rester coordonnée
+   entre le frontend, le backend, OAuth, CORS, WebSocket et DNS.
 4. PostgreSQL isolé par service contre base w3clol existante : aucune
    séparation destructive immédiate ; isolation lors des extractions.
 5. SKIP LOCKED obligatoire contre verrouillage existant : le mécanisme actuel
@@ -861,8 +861,7 @@ critères d’acceptation.
 - RPO/RTO et destination externe des backups ;
 - choix RS256 ou ES256 et politique de rotation ;
 - durée exacte des access/refresh tokens ;
-- maintien de play.pinkward.lol comme API transitoire et date de bascule vers
-  api.pinkward.lol ;
+- date de bascule coordonnée vers gyms.lol et api.gyms.lol ;
 - calibration future du TrueSkill et du soft reset avec des volumes réels ;
 - stratégie RabbitMQ/Redis/STOMP retenue pour le Community Service extrait.
 
