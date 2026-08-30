@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -25,7 +27,7 @@ import org.springframework.web.util.HtmlUtils;
 class IdentityUiController {
 
     private static final Map<String, PermissionCopy> PERMISSIONS = Map.of(
-            "profile:read", new PermissionCopy("View your profile", "Read your Pinkward identity, region and preferred roles."),
+            "profile:read", new PermissionCopy("View your profile", "Read your GYMS.LOL identity, region and profile details."),
             "profile:write", new PermissionCopy("Update your profile", "Keep your presence and matchmaking preferences synchronized."),
             "party:manage", new PermissionCopy("Manage your party", "Create parties, invite players and update ready states."),
             "queue:write", new PermissionCopy("Join matchmaking", "Enter or leave the 1v1 and 5v5 competitive queues."),
@@ -66,16 +68,16 @@ class IdentityUiController {
                 <main class="identity-page identity-page--login">
                   <section class="identity-card login-card">
                     %s
-                    <div class="identity-brand"><span class="brand-mark">P</span><strong>PINKWARD</strong></div>
+                    <div class="identity-brand"><span class="brand-mark">G</span><strong>GYMS.LOL</strong></div>
                     <div class="identity-heading">
                       <span>SECURE ACCESS</span>
                       <h1>WELCOME BACK</h1>
-                      <p>Sign in to continue to Pinkward competitive services.</p>
+                      <p>Sign in to continue to GYMS.LOL competitive services.</p>
                     </div>
                     %s
                     <form method="post" action="/login" class="identity-form">
                       <input type="hidden" name="%s" value="%s">
-                      <label><span>USERNAME</span><input name="username" type="text" autocomplete="username" autofocus required placeholder="Pinkward ID"></label>
+                      <label><span>USERNAME</span><input name="username" type="text" autocomplete="username" autofocus required placeholder="GYMS.LOL ID"></label>
                       <label><span>PASSWORD</span><input name="password" type="password" autocomplete="current-password" required placeholder="••••••••••••"></label>
                       <button class="gold-button" type="submit">SIGN IN</button>
                     </form>
@@ -101,11 +103,12 @@ class IdentityUiController {
         scopes.remove("openid");
         String permissions = scopes.stream().map(this::permission).collect(Collectors.joining());
         CsrfToken csrf = csrf(request);
-        String html = page("Authorize Pinkward", """
+        String principalName = displayName(principal);
+        String html = page("Authorize GYMS.LOL", """
                 <main class="identity-page identity-page--consent">
                   <section class="identity-card consent-card">
                     %s
-                    <div class="identity-brand"><span class="brand-mark">P</span><strong>PINKWARD</strong></div>
+                    <div class="identity-brand"><span class="brand-mark">G</span><strong>GYMS.LOL</strong></div>
                     <div class="identity-heading">
                       <span>AUTHORIZATION REQUEST</span>
                       <h1>CONNECT YOUR ACCOUNT</h1>
@@ -116,24 +119,24 @@ class IdentityUiController {
                       <input type="hidden" name="state" value="%s">
                       <input type="hidden" name="%s" value="%s">
                       <div class="permission-list">%s</div>
-                      <p class="consent-copy">You stay in control. Pinkward only receives the permissions selected here.</p>
+                      <p class="consent-copy">You stay in control. GYMS.LOL only receives the permissions selected here.</p>
                       <div class="consent-actions">
-                        <button class="gold-button" type="submit">AUTHORIZE PINKWARD</button>
+                        <button class="gold-button" type="submit" data-consent-submit>AUTHORIZE GYMS.LOL</button>
                         <button class="ghost-button" type="button" data-consent-cancel>CANCEL</button>
                       </div>
                     </form>
                     <div class="identity-meta"><span><i></i> SIGNED IN AS %s</span><b>OAUTH 2.1 · PKCE</b></div>
                   </section>
                 </main>
-                """.formatted(backgroundArt(), escape(clientName), escape(principal.getName()), escape(clientId),
+                """.formatted(backgroundArt(), escape(clientName), escape(principalName), escape(clientId),
                 escape(state), escape(csrf.getParameterName()), escape(csrf.getToken()), permissions,
-                escape(principal.getName().toUpperCase(Locale.ROOT))));
+                escape(principalName.toUpperCase(Locale.ROOT))));
         return html(html);
     }
 
     private String permission(String scope) {
         PermissionCopy copy = PERMISSIONS.getOrDefault(scope,
-                new PermissionCopy(scope, "Allow Pinkward to use this permission."));
+                new PermissionCopy(scope, "Allow GYMS.LOL to use this permission."));
         return """
                 <label class="permission-row">
                   <input type="checkbox" name="scope" value="%s" checked>
@@ -151,10 +154,26 @@ class IdentityUiController {
         return "<div class=\"identity-art\" aria-hidden=\"true\"><i></i><i></i><i></i></div>";
     }
 
+    private static String displayName(Principal principal) {
+        if (principal instanceof OAuth2AuthenticationToken oauth2) {
+            OAuth2User user = oauth2.getPrincipal();
+            for (String attribute : new String[] {"preferred_username", "nickname", "name", "email"}) {
+                Object value = user.getAttributes().get(attribute);
+                if (value instanceof String text && !text.isBlank()) {
+                    return text;
+                }
+            }
+            return "authenticated user";
+        }
+        return principal == null || principal.getName() == null || principal.getName().isBlank()
+                ? "authenticated user"
+                : principal.getName();
+    }
+
     private static String page(String title, String body) {
         return """
                 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-                <title>%s · Pinkward</title><link rel="stylesheet" href="/identity.css"><script src="/identity.js" defer></script></head><body>%s</body></html>
+                <title>%s · GYMS.LOL</title><link rel="stylesheet" href="/identity.css"><script src="/identity.js" defer></script></head><body>%s</body></html>
                 """.formatted(escape(title), body);
     }
 
