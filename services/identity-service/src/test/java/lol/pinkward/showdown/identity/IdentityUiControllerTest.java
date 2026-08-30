@@ -5,9 +5,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.security.Principal;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -19,11 +24,13 @@ class IdentityUiControllerTest {
     private final IdentityUiController controller = new IdentityUiController(clients, false, "production");
 
     @Test
-    void loginUsesPinkwardIdentityExperience() {
+    void loginUsesGymsIdentityExperience() {
         String body = controller.login(request(), null, null).getBody();
 
         assertThat(body)
                 .contains("WELCOME BACK")
+                .contains("GYMS.LOL")
+                .doesNotContain("PINKWARD")
                 .contains("identity.css")
                 .contains("name=\"username\"")
                 .contains("name=\"_csrf\" value=\"test-token\"");
@@ -52,10 +59,10 @@ class IdentityUiControllerTest {
     }
 
     @Test
-    void consentRendersRequestedPermissionsWithPinkwardActions() {
+    void consentRendersRequestedPermissionsWithGymsActions() {
         RegisteredClient client = RegisteredClient.withId("test-id")
                 .clientId("pinkward-web")
-                .clientName("Pinkward Web")
+                .clientName("GYMS.LOL Web")
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .redirectUri("http://localhost:3000/oauth/callback")
                 .build();
@@ -69,12 +76,38 @@ class IdentityUiControllerTest {
                 .contains("CONNECT YOUR ACCOUNT")
                 .contains("View your profile")
                 .contains("Join matchmaking")
-                .contains("AUTHORIZE PINKWARD")
+                .contains("AUTHORIZE GYMS.LOL")
+                .contains("GYMS.LOL Web")
                 .contains("SIGNED IN AS LOCAL-PLAYER")
+                .doesNotContain("PINKWARD")
                 .contains("identity.js")
                 .contains("data-consent-cancel")
                 .doesNotContain("onclick=")
                 .doesNotContain("value=\"openid\"");
+    }
+
+    @Test
+    void consentShowsAFriendlyExternalIdentityWithoutExposingTheProviderSubject() {
+        RegisteredClient client = RegisteredClient.withId("test-id")
+                .clientId("pinkward-web")
+                .clientName("GYMS.LOL Web")
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("https://gyms.lol/oauth/callback")
+                .build();
+        when(clients.findByClientId("pinkward-web")).thenReturn(client);
+        var user = new DefaultOAuth2User(
+                Set.of(new SimpleGrantedAuthority("ROLE_USER")),
+                Map.of("sub", "auth0|sensitive-provider-subject", "nickname", "Alexis"),
+                "sub");
+        Principal principal = new OAuth2AuthenticationToken(user, user.getAuthorities(), "production");
+
+        String body = controller.consent(
+                request(), principal, "pinkward-web", "openid profile:read", "state-1").getBody();
+
+        assertThat(body)
+                .contains("requesting access to <b>Alexis</b>")
+                .contains("SIGNED IN AS ALEXIS")
+                .doesNotContain("auth0|sensitive-provider-subject");
     }
 
     private static MockHttpServletRequest request() {

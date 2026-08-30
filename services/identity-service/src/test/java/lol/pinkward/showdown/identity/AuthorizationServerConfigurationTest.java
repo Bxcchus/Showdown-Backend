@@ -36,6 +36,7 @@ class AuthorizationServerConfigurationTest {
 
         RegisteredClient web = clients.stream().filter(client -> client.getClientId().equals("pinkward-web")).findFirst().orElseThrow();
         assertThat(web).isNotNull();
+        assertThat(web.getClientName()).isEqualTo("GYMS.LOL Web");
         assertThat(web.getClientAuthenticationMethods()).containsExactly(ClientAuthenticationMethod.NONE);
         assertThat(web.getAuthorizationGrantTypes())
                 .contains(AuthorizationGrantType.AUTHORIZATION_CODE, AuthorizationGrantType.REFRESH_TOKEN);

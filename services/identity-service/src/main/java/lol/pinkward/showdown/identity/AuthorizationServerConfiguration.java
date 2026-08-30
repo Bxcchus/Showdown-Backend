@@ -98,7 +98,7 @@ public class AuthorizationServerConfiguration {
         SimpleUrlAuthenticationFailureHandler failureHandler =
                 new SimpleUrlAuthenticationFailureHandler("/login?error");
         http.authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/login", "/identity.css", "/identity.js",
+                        .requestMatchers("/login", "/identity.css", "/identity.js", "/fonts/**",
                                 "/oauth2/authorization/**", "/login/oauth2/code/**",
                                 "/actuator/health/**", "/actuator/info", "/actuator/prometheus")
                         .permitAll()
@@ -168,6 +168,7 @@ public class AuthorizationServerConfiguration {
                         return;
                     }
                     RegisteredClient.Builder reconciled = RegisteredClient.from(existing)
+                            .clientName(client.getClientName())
                             .scopes(scopes -> {
                                 scopes.clear();
                                 scopes.addAll(client.getScopes());
@@ -208,6 +209,7 @@ public class AuthorizationServerConfiguration {
                 .build();
         RegisteredClient.Builder webBuilder = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("pinkward-web")
+                .clientName("GYMS.LOL Web")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
