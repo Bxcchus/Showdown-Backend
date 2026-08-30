@@ -137,9 +137,13 @@ class PlayerProfileService {
     private PlayerProfile getOrCreate(UUID playerId, String identityUsername, Instant now) {
         return profiles.findById(playerId).orElseGet(() -> profiles.save(PlayerProfile.create(
                 playerId,
-                normalizeDisplayName(identityUsername),
+                temporaryDisplayName(playerId),
                 now,
                 presenceTtl)));
+    }
+
+    private static String temporaryDisplayName(UUID playerId) {
+        return "Player-" + playerId.toString().replace("-", "").substring(0, 16);
     }
 
     private static String normalizeDisplayName(String displayName) {

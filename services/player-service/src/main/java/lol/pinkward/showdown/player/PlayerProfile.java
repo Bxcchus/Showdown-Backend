@@ -29,6 +29,9 @@ class PlayerProfile {
     @Column(name = "secondary_role", nullable = false, length = 16)
     private String secondaryRole;
 
+    @Column(name = "onboarding_completed", nullable = false)
+    private boolean onboardingCompleted;
+
     @Column(name = "last_seen_at", nullable = false)
     private Instant lastSeenAt;
 
@@ -72,6 +75,7 @@ class PlayerProfile {
         profile.region = "EUW";
         profile.primaryRole = "MID";
         profile.secondaryRole = "JUNGLE";
+        profile.onboardingCompleted = false;
         profile.createdAt = now;
         profile.updatedAt = now;
         profile.heartbeat(now, presenceTtl);
@@ -83,6 +87,7 @@ class PlayerProfile {
         this.region = region;
         this.primaryRole = primaryRole;
         this.secondaryRole = secondaryRole;
+        this.onboardingCompleted = true;
         this.updatedAt = now;
     }
 
@@ -120,6 +125,7 @@ class PlayerProfile {
     String region() { return region; }
     String primaryRole() { return primaryRole; }
     String secondaryRole() { return secondaryRole; }
+    boolean onboardingCompleted() { return onboardingCompleted; }
     Instant lastSeenAt() { return lastSeenAt; }
     Instant updatedAt() { return updatedAt; }
     String riotGameName() { return riotGameName; }
