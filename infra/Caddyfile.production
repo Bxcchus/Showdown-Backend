@@ -26,6 +26,11 @@
 		reverse_proxy api-gateway:8080
 	}
 
+	@health path /actuator/health/readiness
+	handle @health {
+		reverse_proxy api-gateway:9101
+	}
+
 	handle {
 		respond 404
 	}

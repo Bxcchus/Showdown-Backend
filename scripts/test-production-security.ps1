@@ -158,7 +158,7 @@ try {
 
     $caddyText = Get-Content -LiteralPath $caddy -Raw
     foreach ($needle in @('{$SHOWDOWN_API_DOMAIN}', '{$SHOWDOWN_WEB_ORIGIN}', 'reverse_proxy web-app:3000',
-            '/fonts/*',
+            '/fonts/*', '/actuator/health/readiness', 'reverse_proxy api-gateway:9101',
             'Strict-Transport-Security', 'Authorization delete', 'Cookie delete',
             'Sec-Websocket-Protocol delete', 'X-Watcher-Token delete', 'X-Showdown-Watcher-Token delete',
             'replace access_token REDACTED', 'replace client_secret REDACTED')) {
