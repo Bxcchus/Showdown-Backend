@@ -115,6 +115,19 @@ try {
     if ($identity.SESSION_COOKIE_SECURE -ne 'true' -or $identity.SESSION_COOKIE_SAME_SITE -ne 'lax') {
         $failures.Add('Production identity cookies must be Secure and SameSite=Lax for cross-site OAuth navigation')
     }
+    $identityNetworks = @($config.services.'identity-service'.networks.PSObject.Properties.Name)
+    if ('oidc-egress' -notin $identityNetworks) {
+        $failures.Add('Production identity service needs the dedicated OIDC egress network')
+    }
+    foreach ($serviceProperty in $config.services.PSObject.Properties) {
+        if ($serviceProperty.Name -eq 'identity-service') {
+            continue
+        }
+        $serviceNetworks = @($serviceProperty.Value.networks.PSObject.Properties.Name)
+        if ('oidc-egress' -in $serviceNetworks) {
+            $failures.Add("$($serviceProperty.Name) must not use the dedicated OIDC egress network")
+        }
+    }
     $expectedIssuer = "https://$apiDomain"
     foreach ($name in @('api-gateway', 'identity-service', 'player-service', 'matchmaking-service', 'match-service')) {
         if ([string]$config.services.$name.environment.JWT_ISSUER -ne $expectedIssuer) {

@@ -50,6 +50,12 @@ services:
         limits: { cpus: "1.00", memory: 768M }
 
   identity-service:
+    networks:
+      - gateway
+      - backend
+      - identity-data
+      - observability
+      - oidc-egress
     environment:
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_IDENTITY_ENABLED: "false"
@@ -124,3 +130,6 @@ services:
 volumes:
   caddy-data:
   caddy-config:
+
+networks:
+  oidc-egress:
