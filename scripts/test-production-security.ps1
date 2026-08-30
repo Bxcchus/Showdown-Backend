@@ -115,6 +115,9 @@ try {
     if ($identity.SESSION_COOKIE_SECURE -ne 'true' -or $identity.SESSION_COOKIE_SAME_SITE -ne 'lax') {
         $failures.Add('Production identity cookies must be Secure and SameSite=Lax for cross-site OAuth navigation')
     }
+    if ($identity.SERVER_FORWARD_HEADERS_STRATEGY -ne 'framework') {
+        $failures.Add('Production identity service must honor trusted proxy headers for HTTPS OAuth callbacks')
+    }
     $identityNetworks = @($config.services.'identity-service'.networks.PSObject.Properties.Name)
     if ('oidc-egress' -notin $identityNetworks) {
         $failures.Add('Production identity service needs the dedicated OIDC egress network')

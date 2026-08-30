@@ -74,6 +74,7 @@ services:
       WEB_DEV_REDIRECT_URI: ""
       SESSION_COOKIE_SECURE: "true"
       SESSION_COOKIE_SAME_SITE: lax
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
     deploy:
       resources:
         limits: { cpus: "0.75", memory: 768M }
