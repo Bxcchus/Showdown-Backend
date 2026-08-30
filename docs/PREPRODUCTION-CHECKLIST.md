@@ -74,7 +74,7 @@ la mise à jour OWASP rapide et fiable.
 - définir `SHOWDOWN_API_DOMAIN` avec le nom DNS du backend, sans schéma, et faire
   pointer ce DNS vers le serveur ;
 - définir `SHOWDOWN_WEB_ORIGIN` avec l'origine HTTPS exacte du frontend autonome
-  (`https://pinkward.fr`) ;
+  (`https://play.pinkward.lol`) ;
 - ouvrir uniquement 80/443 vers Caddy ;
 - renseigner `infra/production.env` depuis le gestionnaire de secrets ;
 - importer `WATCHER_INSTALLATION_CREDENTIALS` depuis les secrets
