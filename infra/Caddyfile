@@ -50,6 +50,8 @@
             request>headers>Authorization delete
             request>headers>Cookie delete
             request>headers>Sec-Websocket-Protocol delete
+            request>headers>X-Watcher-Token delete
+            request>headers>X-Showdown-Watcher-Token delete
             request>uri query {
                 replace code REDACTED
                 replace state REDACTED

@@ -37,6 +37,9 @@ management:
 pinkward:
   issuer: ${JWT_ISSUER:http://identity-service:9000}
   api-audience: ${JWT_AUDIENCE:pinkward-api}
+  external-identity:
+    enabled: ${EXTERNAL_IDENTITY_ENABLED:false}
+    registration-id: ${EXTERNAL_IDENTITY_REGISTRATION_ID:production}
   jwt:
     key-store: ${JWT_KEY_STORE:/var/lib/showdown-identity/jwks.json}
     rotation-age: ${JWT_ROTATION_AGE:30d}

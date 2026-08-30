@@ -16,7 +16,7 @@ import org.springframework.security.web.csrf.DefaultCsrfToken;
 class IdentityUiControllerTest {
 
     private final RegisteredClientRepository clients = mock(RegisteredClientRepository.class);
-    private final IdentityUiController controller = new IdentityUiController(clients);
+    private final IdentityUiController controller = new IdentityUiController(clients, false, "production");
 
     @Test
     void loginUsesPinkwardIdentityExperience() {
@@ -37,6 +37,18 @@ class IdentityUiControllerTest {
                 .contains("Incorrect username or password")
                 .contains("infra/.env")
                 .doesNotContain("LOCAL_IDENTITY_PASSWORD=");
+    }
+
+    @Test
+    void productionLoginRedirectsToTheConfiguredExternalProvider() {
+        IdentityUiController externalController = new IdentityUiController(clients, true, "company-oidc");
+
+        var response = externalController.login(request(), null, null);
+
+        assertThat(response.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.FOUND);
+        assertThat(response.getHeaders().getLocation())
+                .hasToString("/oauth2/authorization/company-oidc");
+        assertThat(response.getBody()).isNull();
     }
 
     @Test

@@ -1,4 +1,4 @@
-{$SHOWDOWN_DOMAIN} {
+{$SHOWDOWN_API_DOMAIN} {
     encode zstd gzip
 
     header {
@@ -7,7 +7,7 @@
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
         X-Frame-Options "DENY"
-        Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$SHOWDOWN_DOMAIN} http://127.0.0.1:43991; img-src 'self' data: https://ddragon.leagueoflegends.com; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$SHOWDOWN_API_DOMAIN}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
         Cross-Origin-Opener-Policy "same-origin"
     }
@@ -27,7 +27,7 @@
     }
 
     handle {
-        reverse_proxy web-app:8080
+        respond 404
     }
 
     log {
@@ -35,6 +35,8 @@
             request>headers>Authorization delete
             request>headers>Cookie delete
             request>headers>Sec-Websocket-Protocol delete
+            request>headers>X-Watcher-Token delete
+            request>headers>X-Showdown-Watcher-Token delete
             request>uri query {
                 replace code REDACTED
                 replace state REDACTED

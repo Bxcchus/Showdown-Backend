@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,12 +18,15 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -56,7 +60,11 @@ public class AuthorizationServerConfiguration {
 
     @Bean
     @Order(1)
-    SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain authorizationServerSecurityFilterChain(
+            HttpSecurity http,
+            @Value("${pinkward.external-identity.enabled:false}") boolean externalIdentityEnabled,
+            @Value("${pinkward.external-identity.registration-id:production}") String registrationId)
+            throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServer =
                 new OAuth2AuthorizationServerConfigurer();
         RequestMatcher endpoints = authorizationServer.getEndpointsMatcher();
@@ -66,7 +74,7 @@ public class AuthorizationServerConfiguration {
                         .authorizationEndpoint(endpoint -> endpoint.consentPage("/oauth2/consent")))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint("/login"),
+                        new LoginUrlAuthenticationEntryPoint(loginUrl(externalIdentityEnabled, registrationId)),
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
         return http.build();
     }
@@ -74,19 +82,33 @@ public class AuthorizationServerConfiguration {
     @Bean
     @Order(2)
     SecurityFilterChain applicationSecurityFilterChain(
-            HttpSecurity http, LoginAttemptGuard loginAttemptGuard) throws Exception {
+            HttpSecurity http,
+            LoginAttemptGuard loginAttemptGuard,
+            ObjectProvider<ClientRegistrationRepository> clientRegistrations,
+            @Value("${pinkward.external-identity.enabled:false}") boolean externalIdentityEnabled,
+            @Value("${pinkward.external-identity.registration-id:production}") String registrationId)
+            throws Exception {
         SavedRequestAwareAuthenticationSuccessHandler successHandler =
                 new SavedRequestAwareAuthenticationSuccessHandler();
         SimpleUrlAuthenticationFailureHandler failureHandler =
                 new SimpleUrlAuthenticationFailureHandler("/login?error");
-        return http.authorizeHttpRequests(authorize -> authorize
+        http.authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/login", "/identity.css", "/identity.js",
+                                "/oauth2/authorization/**", "/login/oauth2/code/**",
                                 "/actuator/health/**", "/actuator/info", "/actuator/prometheus")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
-                .addFilterBefore(loginAttemptGuard, UsernamePasswordAuthenticationFilter.class)
-                .formLogin(form -> form.loginPage("/login")
+                .addFilterBefore(loginAttemptGuard, UsernamePasswordAuthenticationFilter.class);
+        if (externalIdentityEnabled) {
+            if (clientRegistrations.getIfAvailable() == null) {
+                throw new IllegalStateException("External identity is enabled without an OIDC client registration");
+            }
+            http.oauth2Login(oauth -> oauth
+                    .loginPage(loginUrl(true, registrationId))
+                    .successHandler(successHandler));
+        } else {
+            http.formLogin(form -> form.loginPage("/login")
                         .successHandler((request, response, authentication) -> {
                             loginAttemptGuard.recordSuccess(request);
                             successHandler.onAuthenticationSuccess(request, response, authentication);
@@ -94,8 +116,9 @@ public class AuthorizationServerConfiguration {
                         .failureHandler((request, response, exception) -> {
                             loginAttemptGuard.recordFailure(request);
                             failureHandler.onAuthenticationFailure(request, response, exception);
-                        }))
-                .build();
+                        }));
+        }
+        return http.build();
     }
 
     @Bean
@@ -340,11 +363,9 @@ public class AuthorizationServerConfiguration {
         return context -> {
             context.getJwsHeader().keyId(signingKeys.activeKeyId());
             if (AuthorizationGrantType.AUTHORIZATION_CODE.equals(context.getAuthorizationGrantType())) {
-                String username = context.getPrincipal().getName();
-                UUID playerId = UUID.nameUUIDFromBytes(
-                        ("pinkward-local-player:" + username).getBytes(StandardCharsets.UTF_8));
-                context.getClaims().subject(playerId.toString());
-                context.getClaims().claim("preferred_username", username);
+                PlayerIdentity identity = playerIdentity(context.getPrincipal());
+                context.getClaims().subject(identity.playerId().toString());
+                context.getClaims().claim("preferred_username", identity.displayName());
             }
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
                 context.getClaims().audience(List.of(audience));
@@ -361,5 +382,49 @@ public class AuthorizationServerConfiguration {
             }
         };
     }
+
+    static String loginUrl(boolean externalIdentityEnabled, String registrationId) {
+        if (!externalIdentityEnabled) return "/login";
+        if (registrationId == null || !registrationId.matches("[A-Za-z0-9_-]{1,64}")) {
+            throw new IllegalArgumentException("Invalid external identity registration id");
+        }
+        return "/oauth2/authorization/" + registrationId;
+    }
+
+    static PlayerIdentity playerIdentity(Authentication authentication) {
+        if (authentication instanceof OAuth2AuthenticationToken oauth) {
+            String registrationId = oauth.getAuthorizedClientRegistrationId();
+            String providerSubject = oauth.getPrincipal().getName();
+            UUID playerId = UUID.nameUUIDFromBytes(
+                    ("pinkward-oidc-player:" + registrationId + ':' + providerSubject)
+                            .getBytes(StandardCharsets.UTF_8));
+            Object preferred = oauth.getPrincipal().getAttributes().get("preferred_username");
+            Object name = oauth.getPrincipal().getAttributes().get("name");
+            String candidate = preferred instanceof String value && !value.isBlank()
+                    ? value
+                    : name instanceof String value && !value.isBlank() ? value : "Player";
+            return new PlayerIdentity(playerId, externalDisplayName(candidate, playerId));
+        }
+        String username = authentication.getName();
+        UUID playerId = UUID.nameUUIDFromBytes(
+                ("pinkward-local-player:" + username).getBytes(StandardCharsets.UTF_8));
+        return new PlayerIdentity(playerId, username);
+    }
+
+    private static String externalDisplayName(String candidate, UUID playerId) {
+        String normalized = candidate.strip()
+                .replaceAll("\\s+", " ")
+                .replaceAll("[^\\p{L}\\p{N}_. -]", "")
+                .strip();
+        if (normalized.length() < 3) normalized = "Player";
+        String suffix = "-" + playerId.toString().substring(0, 6);
+        int maximumBaseLength = 24 - suffix.length();
+        if (normalized.length() > maximumBaseLength) {
+            normalized = normalized.substring(0, maximumBaseLength).stripTrailing();
+        }
+        return normalized + suffix;
+    }
+
+    record PlayerIdentity(UUID playerId, String displayName) {}
 
 }

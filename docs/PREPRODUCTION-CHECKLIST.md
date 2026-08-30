@@ -28,8 +28,9 @@ Pop-Location
 ~~~
 
 La CI répète ces contrôles, exécute OWASP Dependency-Check et bloque aussi sur
-les vulnérabilités HIGH/CRITICAL corrigibles trouvées par Trivy dans les sept
-images applicatives. Les propositions Dependabot couvrent Maven, npm, Cargo,
+les vulnérabilités HIGH/CRITICAL corrigibles trouvées par Trivy dans toutes les
+images référencées par Compose, y compris PostgreSQL, Redis, RabbitMQ et les
+composants d'observabilité durcis. Les propositions Dependabot couvrent Maven, npm, Cargo,
 Docker et GitHub Actions. Les actions tierces sont référencées par SHA.
 
 ## Preuves locales du 30 août 2026
@@ -46,7 +47,8 @@ Docker et GitHub Actions. Les actions tierces sont référencées par SHA.
 - tests runtime : isolation des scopes, CORS et origine WebSocket hostiles,
   limitation de débit, limitation des connexions, ACL RabbitMQ et masquage des
   tokens Caddy vérifiés ;
-- Trivy : zéro vulnérabilité HIGH/CRITICAL corrigible dans les sept images ;
+- Trivy : zéro vulnérabilité HIGH/CRITICAL corrigible dans toutes les images
+  Compose auditées ;
 - hygiène des images : utilisateurs applicatifs non-root et absence de `.env`,
   dump, sauvegarde, PDB ou exécutable Watcher distribué.
 
@@ -69,15 +71,25 @@ la mise à jour OWASP rapide et fiable.
 
 ## Domaine, HTTPS et identité (externes)
 
-- définir `SHOWDOWN_DOMAIN` et faire pointer les DNS vers le serveur ;
+- définir `SHOWDOWN_API_DOMAIN` avec le nom DNS du backend, sans schéma, et faire
+  pointer ce DNS vers le serveur ;
+- définir `SHOWDOWN_WEB_ORIGIN` avec l'origine HTTPS exacte du frontend autonome
+  (actuellement `https://pinkward-showdown.guy-alexis60.chatgpt.site`) ;
 - ouvrir uniquement 80/443 vers Caddy ;
 - renseigner `infra/production.env` depuis le gestionnaire de secrets ;
+- créer le fichier secret indiqué par `ALERTMANAGER_WEBHOOK_URL_FILE` avec l'URL
+  du canal d'astreinte, puis déclencher et résoudre une alerte de test ;
+- vérifier que le rendu Compose de production n'inclut pas `web-app` ; le profil
+  `legacy-integrated-web` est réservé aux diagnostics locaux ;
 - conserver `RESULT_INGESTOR_CLIENT_SECRET` dans le backend/CI uniquement ;
-- sélectionner et intégrer le fournisseur d'identité de production avant
-  d'accepter des comptes réels ; les identités locales sont désactivées par la
+- enregistrer l'application chez le fournisseur OIDC choisi, renseigner
+  `OIDC_ISSUER_URI`, `OIDC_CLIENT_ID` et `OIDC_CLIENT_SECRET`, puis autoriser le
+  callback `https://<SHOWDOWN_API_DOMAIN>/login/oauth2/code/production` ; le
+  relais OIDC est intégré et les identités locales sont désactivées par la
   surcharge de production ;
 - vérifier le certificat ACME, HSTS, les redirections OAuth exactes et les
-  cookies `Secure`, `HttpOnly`, `SameSite=Strict` depuis le domaine final ;
+  cookies `Secure`, `HttpOnly`, `SameSite=Lax` depuis le domaine final ; `Lax`
+  conserve la session lors de la navigation OAuth entre le frontend et l'API ;
 - signer l'exécutable Watcher Windows avant de le publier. Aucun binaire non
   signé ne doit être servi par le site.
 

@@ -283,7 +283,10 @@ services:
 
   postgres:
     <<: *runtime-security
-    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    image: pinkward/postgres:17.11-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres/Dockerfile
     environment:
       POSTGRES_DB: pinkward_matchmaking
       POSTGRES_USER: matchmaking_service
@@ -302,7 +305,10 @@ services:
 
   match-postgres:
     <<: *runtime-security
-    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    image: pinkward/postgres:17.11-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres/Dockerfile
     environment:
       POSTGRES_DB: pinkward_matches
       POSTGRES_USER: match_service
@@ -321,7 +327,10 @@ services:
 
   player-postgres:
     <<: *runtime-security
-    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    image: pinkward/postgres:17.11-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres/Dockerfile
     environment:
       POSTGRES_DB: pinkward_players
       POSTGRES_USER: player_service
@@ -340,7 +349,10 @@ services:
 
   identity-postgres:
     <<: *runtime-security
-    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    image: pinkward/postgres:17.11-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres/Dockerfile
     environment:
       POSTGRES_DB: pinkward_identity
       POSTGRES_USER: identity_service
@@ -360,7 +372,10 @@ services:
 
   redis:
     <<: *runtime-security
-    image: redis:8.2-alpine@sha256:a7859ed111db3c1f5404a973a4747505d559fb5ca32d37e447afc0ef845a2103
+    image: pinkward/redis:8.10.1-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/redis/Dockerfile
     command:
       - redis-server
       - --requirepass
@@ -397,7 +412,10 @@ services:
 
   rabbitmq:
     <<: *runtime-security
-    image: rabbitmq:4.1-management-alpine@sha256:5ae1b436f98ed304168a55a90280dadfb0f1bfe5736d6e2e970e69f7f8fdf5e4
+    image: pinkward/rabbitmq:4.3.5-management-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/rabbitmq/Dockerfile
     environment:
       RABBITMQ_DEFAULT_VHOST: Pinkward
       RABBITMQ_DEFAULT_USER: showdown_admin
@@ -418,7 +436,10 @@ services:
 
   rabbitmq-bootstrap:
     <<: *runtime-security
-    image: curlimages/curl:8.15.0@sha256:4026b29997dc7c823b51c164b71e2b51e0fd95cce4601f78202c513d97da2922
+    image: pinkward/rabbitmq-bootstrap:8.21.0-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/rabbitmq-bootstrap/Dockerfile
     environment:
       RABBITMQ_ADMIN_PASSWORD: ${RABBITMQ_ADMIN_PASSWORD:?RABBITMQ_ADMIN_PASSWORD is required}
       MATCHMAKING_RABBITMQ_PASSWORD: ${MATCHMAKING_RABBITMQ_PASSWORD:?MATCHMAKING_RABBITMQ_PASSWORD is required}
@@ -439,10 +460,15 @@ services:
           sleep 1
         done
         until curl -fsS -u "$$auth" "$$api/overview" >/dev/null; do sleep 1; done
+        echo 'Configuring RabbitMQ service users'
         curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/users/matchmaking_service" -d "{\"password\":\"$$MATCHMAKING_RABBITMQ_PASSWORD\",\"tags\":\"\"}"
         curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/users/match_service" -d "{\"password\":\"$$MATCH_RABBITMQ_PASSWORD\",\"tags\":\"\"}"
+        echo 'Configuring RabbitMQ virtual-host permissions'
         curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/permissions/Pinkward/matchmaking_service" -d '{"configure":"^(pinkward\\.events|pinkward\\.events\\.dlx|pinkward\\.matchmaking\\..*)$","write":"^(pinkward\\.events(\\.dlx)?|pinkward\\.matchmaking\\..*)$","read":"^(pinkward\\.events(\\.dlx)?|pinkward\\.matchmaking\\..*)$"}'
         curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/permissions/Pinkward/match_service" -d '{"configure":"^(pinkward\\.events|pinkward\\.events\\.dlx|pinkward\\.match\\..*)$","write":"^(pinkward\\.events(\\.dlx)?|pinkward\\.match\\..*)$","read":"^(pinkward\\.events(\\.dlx)?|pinkward\\.match\\..*)$"}'
+        echo 'Declaring the secured RabbitMQ event exchange'
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/exchanges/Pinkward/pinkward.events" -d '{"type":"topic","durable":true,"auto_delete":false,"internal":false,"arguments":{}}'
+        echo 'Configuring RabbitMQ topic permissions'
         curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/topic-permissions/Pinkward/matchmaking_service" -d '{"exchange":"pinkward.events","write":"^pinkward\\.matchmaking\\..*$","read":"^pinkward\\.match\\..*$"}'
         curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/topic-permissions/Pinkward/match_service" -d '{"exchange":"pinkward.events","write":"^pinkward\\.match\\..*$","read":"^pinkward\\.matchmaking\\..*$"}'
     networks:
@@ -454,7 +480,7 @@ services:
 
   redis-exporter:
     <<: *runtime-security
-    image: oliver006/redis_exporter:v1.77.0@sha256:4c8000eb3525e0f6ed1327499861e272fcce358a9e7a87dd9db74c44607e6d8e
+    image: oliver006/redis_exporter:v1.90.0@sha256:a129504e65b87c54f79bc92f1afc403475e8ff646a3d7512de469904ceddf986
     environment:
       REDIS_ADDR: redis://redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
@@ -468,7 +494,10 @@ services:
 
   matchmaking-postgres-exporter:
     <<: *runtime-security
-    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    image: pinkward/postgres-exporter:0.20.1-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres-exporter/Dockerfile
     environment:
       DATA_SOURCE_NAME: postgresql://matchmaking_service:${POSTGRES_PASSWORD}@postgres:5432/pinkward_matchmaking?sslmode=disable
     networks: [data, observability]
@@ -478,7 +507,10 @@ services:
 
   match-postgres-exporter:
     <<: *runtime-security
-    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    image: pinkward/postgres-exporter:0.20.1-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres-exporter/Dockerfile
     environment:
       DATA_SOURCE_NAME: postgresql://match_service:${MATCH_POSTGRES_PASSWORD}@match-postgres:5432/pinkward_matches?sslmode=disable
     networks: [match-data, observability]
@@ -488,7 +520,10 @@ services:
 
   player-postgres-exporter:
     <<: *runtime-security
-    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    image: pinkward/postgres-exporter:0.20.1-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres-exporter/Dockerfile
     environment:
       DATA_SOURCE_NAME: postgresql://player_service:${PLAYER_POSTGRES_PASSWORD}@player-postgres:5432/pinkward_players?sslmode=disable
     networks: [player-data, observability]
@@ -498,7 +533,10 @@ services:
 
   identity-postgres-exporter:
     <<: *runtime-security
-    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    image: pinkward/postgres-exporter:0.20.1-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/postgres-exporter/Dockerfile
     environment:
       DATA_SOURCE_NAME: postgresql://identity_service:${IDENTITY_POSTGRES_PASSWORD}@identity-postgres:5432/pinkward_identity?sslmode=disable
     networks: [identity-data, observability]
@@ -508,7 +546,10 @@ services:
 
   alertmanager:
     <<: *runtime-security
-    image: prom/alertmanager:v0.28.1@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba
+    image: pinkward/alertmanager:0.34.0-hardened
+    build:
+      context: ..
+      dockerfile: infra/images/alertmanager/Dockerfile
     command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
     volumes:
       - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
@@ -519,7 +560,7 @@ services:
 
   prometheus:
     <<: *runtime-security
-    image: prom/prometheus:v3.6.0@sha256:76947e7ef22f8a698fc638f706685909be425dbe09bd7a2cd7aca849f79b5f64
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus

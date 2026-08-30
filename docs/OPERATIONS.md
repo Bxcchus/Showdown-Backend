@@ -19,6 +19,28 @@ Le port Caddy et les interfaces d’observabilité sont publiés uniquement sur
 loopback IPv4. Les services applicatifs, PostgreSQL, Redis et RabbitMQ ne sont
 pas publiés sur l’hôte.
 
+En production, le frontend est déployé séparément. Préparer l'environnement à
+partir de `infra/production.env.example`, puis définir :
+
+- `SHOWDOWN_API_DOMAIN`, nom DNS du backend sans `https://` ;
+- `SHOWDOWN_WEB_ORIGIN`, origine HTTPS exacte du frontend, sans slash final.
+- `OIDC_ISSUER_URI`, URL HTTPS de découverte du fournisseur d'identité ;
+- `OIDC_CLIENT_ID` et `OIDC_CLIENT_SECRET`, credential confidentiel enregistré
+  avec le callback `https://<SHOWDOWN_API_DOMAIN>/login/oauth2/code/production`.
+
+Valider avant démarrage :
+
+~~~powershell
+.\scripts\test-production-security.ps1 -EnvironmentFile .\infra\production.env
+docker compose --env-file .\infra\production.env `
+  -f .\infra\compose.yml -f .\infra\compose.production.yml config --quiet
+~~~
+
+Le profil production par défaut ne crée pas `web-app` et Caddy ne route que
+l'identité et `/api/*`. Les origines OAuth, CORS et WebSocket doivent toutes
+correspondre au frontend autonome configuré. Les comptes locaux sont désactivés
+et `/login` redirige vers le fournisseur OIDC externe.
+
 ## Secrets locaux
 
 `scripts/start.ps1` génère au premier lancement seize valeurs Base64URL
@@ -79,6 +101,12 @@ Les règles versionnées alertent aussi sur les cibles absentes, le backlog
 RabbitMQ, la mémoire Redis et les bases indisponibles. Le receiver local
 Alertmanager est volontairement neutre : brancher le canal d’astreinte réel en
 production.
+
+Le profil production remplace ce receiver local par
+`infra/observability/alertmanager.production.yml`. Écrire exclusivement l'URL
+du webhook dans le fichier hôte référencé par `ALERTMANAGER_WEBHOOK_URL_FILE`,
+limiter ses permissions, puis vérifier une alerte de test et sa résolution. Le
+secret n'est ni placé dans Compose, ni ajouté au dépôt, ni exposé dans les logs.
 
 ## Sauvegarde et restauration PostgreSQL
 

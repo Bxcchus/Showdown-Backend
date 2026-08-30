@@ -27,9 +27,18 @@ Identity, Gateway, Player, Matchmaking and Match are independent deployables
 because each owns real behavior. Future services are introduced by a vertical
 business slice, never as health-only shells.
 
+The diagram above describes the local compatibility stack. In production, the
+standalone `Showdown-Frontend` is hosted separately and calls the dedicated
+HTTPS API origin. Production Caddy exposes Identity and API Gateway only; the
+legacy `web-app` service is disabled unless the explicit
+`legacy-integrated-web` diagnostic profile is enabled.
+
 ## Security boundary
 
 - Identity signs RS256 access tokens and exposes JWKS.
+- Production delegates user authentication to a configurable external OIDC
+  provider. The provider registration identifier and immutable `sub` claim form
+  the stable Pinkward player identity; local passwords remain development-only.
 - The Web App is a public client and uses Authorization Code with PKCE.
 - Technical clients use distinct Client Credentials.
 - Gateway and every resource service validate issuer, audience and timestamps.
@@ -271,8 +280,10 @@ Queues, DLQs and messages used by the event pipeline are durable.
 
 Actuator management listeners use separate internal ports. Prometheus scrapes
 the five JVM services, RabbitMQ, Redis and four PostgreSQL exporters. Only
-Caddy, Prometheus and Alertmanager are bound to host loopback; Caddy exposes the
-web/API edge and Gateway readiness, not metrics. Alert rules cover target loss, sustained 5xx,
+Caddy, Prometheus and Alertmanager are bound to host loopback locally; Caddy
+exposes the local web/API edge and Gateway readiness, not metrics. In production
+only Caddy publishes host ports, and its routes are limited to Identity and API
+Gateway. Alert rules cover target loss, sustained 5xx,
 rate-limit pressure, RabbitMQ backlog, Redis memory and PostgreSQL availability.
 
 All four PostgreSQL databases can be dumped as verified compressed archives
