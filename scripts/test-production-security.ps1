@@ -10,6 +10,10 @@ $base = Join-Path $root 'infra/compose.yml'
 $override = Join-Path $root 'infra/compose.production.yml'
 $caddy = Join-Path $root 'infra/Caddyfile.production'
 $alertmanager = Join-Path $root 'infra/observability/alertmanager.production.yml'
+$watcherProvisioning = Join-Path $root 'scripts/new-watcher-installation.ps1'
+$alertmanagerProvisioning = Join-Path $root 'scripts/set-alertmanager-webhook-secret.ps1'
+$productionBackup = Join-Path $root 'scripts/backup-production.ps1'
+$productionRestore = Join-Path $root 'scripts/restore-production.ps1'
 $failures = [Collections.Generic.List[string]]::new()
 
 $renderEnvironment = Join-Path ([IO.Path]::GetTempPath()) ('showdown-production-' + [Guid]::NewGuid().ToString('N') + '.env')
@@ -140,6 +144,32 @@ try {
         $alertmanagerText -notmatch 'url_file:\s*/run/secrets/alertmanager-webhook-url' -or
         $alertmanagerText -match 'local-console') {
         $failures.Add('Production Alertmanager must use the externally provisioned webhook secret file')
+    }
+    $watcherProvisioningText = Get-Content -LiteralPath $watcherProvisioning -Raw
+    if ($watcherProvisioningText -notmatch '\$EnvironmentFile' -or
+        $watcherProvisioningText -notmatch 'RandomNumberGenerator' -or
+        $watcherProvisioningText -notmatch 'S-1-5-32-544') {
+        $failures.Add('Watcher provisioning must support production environments, random credentials and restricted ACLs')
+    }
+    $alertmanagerProvisioningText = Get-Content -LiteralPath $alertmanagerProvisioning -Raw
+    if ($alertmanagerProvisioningText -notmatch 'Read-Host.*-AsSecureString' -or
+        $alertmanagerProvisioningText -notmatch "Scheme -ne 'https'" -or
+        $alertmanagerProvisioningText -notmatch 'chmod 600') {
+        $failures.Add('Alertmanager webhook provisioning must prompt securely, require HTTPS and restrict permissions')
+    }
+    $productionBackupText = Get-Content -LiteralPath $productionBackup -Raw
+    foreach ($needle in @('infra/production.env', 'infra/compose.production.yml', 'S3EndpointUrl',
+            's3api head-object', 'Get-FileHash', 'finally')) {
+        if ($productionBackupText -notmatch [Regex]::Escape($needle)) {
+            $failures.Add("Production backup is missing: $needle")
+        }
+    }
+    $productionRestoreText = Get-Content -LiteralPath $productionRestore -Raw
+    foreach ($needle in @('infra/production.env', 'infra/compose.production.yml', 'S3ObjectKey',
+            'Encrypted backup checksum mismatch', 'Backup artifact checksum mismatch')) {
+        if ($productionRestoreText -notmatch [Regex]::Escape($needle)) {
+            $failures.Add("Production restore is missing: $needle")
+        }
     }
 }
 finally {
