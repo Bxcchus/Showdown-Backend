@@ -26,7 +26,7 @@
         respond 204
     }
 
-    @identity path /.well-known/openid-configuration /.well-known/oauth-authorization-server /oauth2/* /connect/* /login* /logout* /error* /userinfo /default-ui.css /identity.css /identity.js
+    @identity path /.well-known/openid-configuration /.well-known/oauth-authorization-server /oauth2/* /connect/* /login* /logout* /error* /userinfo /default-ui.css /identity.css /identity.js /fonts/*
     handle @identity {
         reverse_proxy identity-service:9000
     }
