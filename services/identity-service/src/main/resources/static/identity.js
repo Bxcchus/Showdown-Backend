@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     submitting = true
     form.setAttribute('aria-busy', 'true')
     form.querySelectorAll('button').forEach((button) => {
-      button.disabled = true
+      button.setAttribute('aria-disabled', 'true')
     })
     const submit = form.querySelector('[data-consent-submit]')
     if (submit) submit.textContent = 'AUTHORIZING…'

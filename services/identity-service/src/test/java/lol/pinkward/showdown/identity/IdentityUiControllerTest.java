@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.Map;
 import java.util.Set;
@@ -108,6 +109,19 @@ class IdentityUiControllerTest {
                 .contains("requesting access to <b>Alexis</b>")
                 .contains("SIGNED IN AS ALEXIS")
                 .doesNotContain("auth0|sensitive-provider-subject");
+    }
+
+    @Test
+    void consentScriptLocksRepeatedSubmissionsWithoutDisablingFormControls() throws Exception {
+        try (var stream = getClass().getResourceAsStream("/static/identity.js")) {
+            assertThat(stream).isNotNull();
+            String script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(script)
+                    .contains("if (submitting)")
+                    .contains("event.preventDefault()")
+                    .contains("aria-disabled")
+                    .doesNotContain("button.disabled = true");
+        }
     }
 
     private static MockHttpServletRequest request() {
