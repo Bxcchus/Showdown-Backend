@@ -2,17 +2,38 @@
 param(
     [Parameter(Mandatory)]
     [ValidatePattern('^[A-Za-z0-9_-]{8,64}$')]
-    [string]$InstallationName
+    [string]$InstallationName,
+    [string]$EnvironmentFile,
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$envPath = Join-Path $projectRoot 'infra\.env'
-if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
-    throw 'infra/.env est absent.'
+$envPath = if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
+    Join-Path $projectRoot 'infra\.env'
+} elseif ([IO.Path]::IsPathRooted($EnvironmentFile)) {
+    [IO.Path]::GetFullPath($EnvironmentFile)
+} else {
+    [IO.Path]::GetFullPath((Join-Path $projectRoot $EnvironmentFile))
 }
+if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
+    throw "Environment file is missing: $envPath"
+}
+$outputRoot = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $projectRoot 'watcher-installations'
+} elseif ([IO.Path]::IsPathRooted($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+} else {
+    [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
+}
+[IO.Directory]::CreateDirectory($outputRoot) | Out-Null
 
 $clientId = "pinkward-watcher-installation-$InstallationName"
+$credentialPath = Join-Path $outputRoot "$clientId.env"
+if (Test-Path -LiteralPath $credentialPath) {
+    throw "Credential file already exists: $credentialPath"
+}
 $bytes = [byte[]]::new(32)
 [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
 $secret = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
@@ -32,26 +53,29 @@ if ($current.Split(',', [StringSplitOptions]::RemoveEmptyEntries) |
 }
 $credential = "$clientId=$secret"
 $updated = if ([string]::IsNullOrWhiteSpace($current)) { $credential } else { "$current,$credential" }
-if ($index -ge 0) { $lines[$index] = "WATCHER_INSTALLATION_CREDENTIALS=$updated" }
-else { $lines.Add("WATCHER_INSTALLATION_CREDENTIALS=$updated") }
-[IO.File]::WriteAllLines($envPath, $lines, [Text.UTF8Encoding]::new($false))
-
-$outputRoot = Join-Path $projectRoot 'watcher-installations'
-[IO.Directory]::CreateDirectory($outputRoot) | Out-Null
-$credentialPath = Join-Path $outputRoot "$clientId.env"
 [IO.File]::WriteAllLines($credentialPath, @(
     'SHOWDOWN_WATCHER_ENVIRONMENT=production',
     "SHOWDOWN_WATCHER_CLIENT_ID=$clientId",
     "SHOWDOWN_WATCHER_CLIENT_SECRET=$secret"
 ), [Text.UTF8Encoding]::new($false))
-$acl = New-Object Security.AccessControl.FileSecurity
-$acl.SetAccessRuleProtection($true, $false)
-foreach ($identity in @([Security.Principal.WindowsIdentity]::GetCurrent().Name,
-        'NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators')) {
-    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
-            $identity, 'FullControl', 'Allow'))
+if ($IsWindows) {
+    $acl = Get-Acl -LiteralPath $credentialPath
+    $acl.SetAccessRuleProtection($true, $false)
+    foreach ($rule in @($acl.Access)) { $acl.RemoveAccessRuleSpecific($rule) }
+    foreach ($identity in @(
+            [Security.Principal.WindowsIdentity]::GetCurrent().User,
+            [Security.Principal.SecurityIdentifier]::new('S-1-5-18'),
+            [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))) {
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+                $identity, 'FullControl', 'Allow'))
+    }
+    Set-Acl -LiteralPath $credentialPath -AclObject $acl
+} else {
+    & chmod 600 $credentialPath
 }
-Set-Acl -LiteralPath $credentialPath -AclObject $acl
+if ($index -ge 0) { $lines[$index] = "WATCHER_INSTALLATION_CREDENTIALS=$updated" }
+else { $lines.Add("WATCHER_INSTALLATION_CREDENTIALS=$updated") }
+[IO.File]::WriteAllLines($envPath, $lines, [Text.UTF8Encoding]::new($false))
 
 Write-Output "Installation créée : $clientId"
 Write-Output "Credential local protégé : $credentialPath"

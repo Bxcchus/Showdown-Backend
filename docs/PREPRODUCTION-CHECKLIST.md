@@ -74,11 +74,14 @@ la mise à jour OWASP rapide et fiable.
 - définir `SHOWDOWN_API_DOMAIN` avec le nom DNS du backend, sans schéma, et faire
   pointer ce DNS vers le serveur ;
 - définir `SHOWDOWN_WEB_ORIGIN` avec l'origine HTTPS exacte du frontend autonome
-  (actuellement `https://pinkward-showdown.guy-alexis60.chatgpt.site`) ;
+  (`https://pinkward.fr`) ;
 - ouvrir uniquement 80/443 vers Caddy ;
 - renseigner `infra/production.env` depuis le gestionnaire de secrets ;
+- importer `WATCHER_INSTALLATION_CREDENTIALS` depuis les secrets
+  `prod/showdown/watchers/*` et vérifier qu'un credential révoqué obtient 401 ;
 - créer le fichier secret indiqué par `ALERTMANAGER_WEBHOOK_URL_FILE` avec l'URL
-  du canal d'astreinte, puis déclencher et résoudre une alerte de test ;
+  stockée dans `prod/showdown/alertmanager`, puis déclencher et résoudre une
+  alerte de test ;
 - vérifier que le rendu Compose de production n'inclut pas `web-app` ; le profil
   `legacy-integrated-web` est réservé aux diagnostics locaux ;
 - conserver `RESULT_INGESTOR_CLIENT_SECRET` dans le backend/CI uniquement ;
@@ -95,19 +98,23 @@ la mise à jour OWASP rapide et fiable.
 
 ## Données et sauvegardes
 
-Si des données réelles sont conservées, installer `age`, choisir un destinataire
-de chiffrement et un stockage hors hôte, puis programmer :
+Si des données réelles sont conservées, installer `age` et AWS CLI, choisir un
+destinataire de chiffrement et un bucket OVHcloud S3 dans une autre région, puis
+programmer :
 
 ~~~powershell
 .\scripts\backup-production.ps1 `
   -AgeRecipient 'age1...' `
-  -OffsiteDirectory 'D:\Showdown-Offsite' `
-  -RetentionDays 30
+  -S3Bucket 'pinkward-production-backups' `
+  -S3EndpointUrl 'https://s3.gra.cloud.ovh.net' `
+  -S3Prefix 'showdown-production'
 ~~~
 
-Tester périodiquement une restauration dans une stack isolée avec
-`restore-production.ps1`. Les dumps locaux et archives chiffrées sont exclus de
-Git et du contexte Docker.
+Activer le versioning, une politique de cycle de vie et Object Lock sur le
+bucket. Tester périodiquement une restauration depuis S3 dans une stack isolée
+avec `restore-production.ps1`, puis exécuter les smoke tests. Le script vérifie
+le SHA-256 de l'archive et des quatre dumps avant restauration et supprime les
+dumps temporaires en clair.
 
 ## Décision de lancement
 

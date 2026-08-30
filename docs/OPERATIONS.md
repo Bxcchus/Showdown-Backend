@@ -108,6 +108,37 @@ du webhook dans le fichier hôte référencé par `ALERTMANAGER_WEBHOOK_URL_FILE
 limiter ses permissions, puis vérifier une alerte de test et sa résolution. Le
 secret n'est ni placé dans Compose, ni ajouté au dépôt, ni exposé dans les logs.
 
+Provisionnement interactif du fichier, sans URL en argument ni dans l'historique
+du shell :
+
+~~~powershell
+.\scripts\set-alertmanager-webhook-secret.ps1 `
+  -SecretFile '/run/secrets/showdown-alertmanager-webhook-url'
+~~~
+
+En production OVHcloud, conserver la valeur source dans Secret Manager sous un
+chemin dédié tel que `prod/showdown/alertmanager`, puis injecter sa valeur dans
+ce fichier avec un compte limité. Le fichier monté contient uniquement l'URL
+HTTPS, sans retour de la valeur dans les journaux.
+
+## Credentials Watcher individuels
+
+Chaque installation reçoit un client et un secret différents. Pour préparer le
+credential de la machine d'Alexis dans l'environnement de production local :
+
+~~~powershell
+.\scripts\new-watcher-installation.ps1 `
+  -InstallationName 'alexis-win-001' `
+  -EnvironmentFile '.\infra\production.env'
+~~~
+
+Le script modifie `WATCHER_INSTALLATION_CREDENTIALS`, écrit le fichier client
+dans `watcher-installations/`, limite ses permissions et n'affiche jamais le
+secret. Dans OVHcloud Secret Manager, stocker la paire backend sous un chemin
+tel que `prod/showdown/watchers/alexis-win-001`. Le fichier client est remis
+uniquement à l'installation concernée. Une révocation supprime cette entrée du
+backend et impose le redémarrage de l'Identity Service.
+
 ## Sauvegarde et restauration PostgreSQL
 
 ~~~powershell
@@ -132,20 +163,34 @@ En production, copier les archives chiffrées vers un stockage hors hôte,
 définir RPO/RTO, programmer les sauvegardes et tester périodiquement une
 restauration dans un environnement isolé.
 
-Le flux de production chiffre avant écriture sur le stockage hors hôte :
+Le flux de production utilise `infra/production.env` et les deux fichiers
+Compose de production. Les quatre dumps et le manifeste existent uniquement le
+temps de créer l'archive `age`, puis sont supprimés même en cas d'échec. Le mode
+recommandé écrit ensuite l'archive chiffrée dans un bucket OVHcloud Object
+Storage compatible S3 situé dans une autre région :
 
 ~~~powershell
 .\scripts\backup-production.ps1 `
   -AgeRecipient 'age1...' `
-  -OffsiteDirectory 'D:\Showdown-Offsite' `
-  -RetentionDays 30
+  -S3Bucket 'pinkward-production-backups' `
+  -S3EndpointUrl 'https://s3.gra.cloud.ovh.net' `
+  -S3Prefix 'showdown-production'
 
 .\scripts\restore-production.ps1 `
-  -ArchiveFile 'D:\Showdown-Offsite\showdown-YYYYMMDDTHHMMSSZ.tar.age' `
-  -AgeIdentityFile 'D:\Secrets\showdown-backup-key.txt' `
   -Database matches `
+  -S3Bucket 'pinkward-production-backups' `
+  -S3EndpointUrl 'https://s3.gra.cloud.ovh.net' `
+  -S3ObjectKey 'showdown-production/showdown-backup-YYYYMMDDTHHMMSSZ.tar.age' `
+  -AgeIdentityFile '/run/secrets/showdown-backup-age-key.txt' `
   -Force
 ~~~
+
+La restauration vérifie d'abord le SHA-256 de l'archive chiffrée, déchiffre dans
+un dossier temporaire, puis vérifie le manifeste et les quatre dumps avant de
+toucher PostgreSQL. Effectuer le premier test avec une stack de restauration
+isolée, jamais directement sur la production. La rétention, le versioning et
+l'Object Lock se configurent côté bucket ; la clé privée `age` ne doit pas être
+stockée dans le même bucket.
 
 Voir aussi [la checklist de préproduction](PREPRODUCTION-CHECKLIST.md).
 
