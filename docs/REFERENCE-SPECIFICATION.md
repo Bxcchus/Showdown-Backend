@@ -1093,19 +1093,25 @@ fenêtre de compatibilité qui continuerait d’accepter des tokens sans audienc
 
 - le 1v1 n'utilise pas le matchmaking : un joueur recherche le pseudo Showdown
   exact de son adversaire et envoie une invitation valable dix minutes ;
-- le watcher lit le PUUID et le Riot ID du compte connecté, puis complète
-  directement un challenge de liaison à usage unique ; le navigateur ne peut
-  ni fabriquer ni réécrire cette identité ;
+- le navigateur authentifié crée un challenge de liaison à usage unique, ouvre
+  une session locale éphémère auprès du watcher, lit le PUUID, le Riot ID,
+  l'icône et le niveau détectés par le LCU, puis complète son propre challenge ;
+- cette liaison est qualifiée de « compte détecté localement » : sans Riot RSO,
+  elle ne prouve pas cryptographiquement la propriété face à un binaire modifié ;
 - après acceptation, Match Service crée un match `ONE_V_ONE`, une équipe par
   humain, ainsi qu'un nom et un mot de passe de lobby chiffré au repos ;
 - chaque navigateur remet à son watcher loopback un jeton aléatoire de 256 bits,
   limité au joueur et au match, haché côté serveur, rotatif et valable deux heures ;
 - le watcher hôte crée le lobby, invite l'adversaire, attend deux membres et lance
   la sélection ; le watcher invité tente le join direct puis accepte l'invitation ;
+- avant toute mutation LCU, le watcher compare le PUUID et le Riot ID complets du
+  compte ouvert avec l'affectation autoritaire renvoyée par Match Service ;
 - le watcher utilise la Live Client Data API pour premier sang, première tour et
   premier joueur à 100 CS, sans lecture mémoire ni injection ;
 - deux observations indépendantes doivent désigner le même objectif et le même
   vainqueur avant toute écriture du résultat et toute mise à jour Glicko-2 ;
+- si un événement et un passage à 100 CS apparaissent pour la première fois dans
+  le même cycle, aucun résultat n'est publié et le duel passe en revue manuelle ;
 - le LCU est une interface locale non supportée officiellement : ses routes sont
   confinées à l'adaptateur Rust et devront être retestées après chaque patch Riot.
 

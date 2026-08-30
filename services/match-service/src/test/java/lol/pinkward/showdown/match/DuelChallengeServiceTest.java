@@ -23,9 +23,9 @@ class DuelChallengeServiceTest {
         UUID challenger = UUID.randomUUID();
         UUID opponent = UUID.randomUUID();
         when(fixture.identities.resolve(challenger))
-                .thenReturn(new DuelIdentityClient.DuelIdentity(challenger, "Verified Host#EUW", "EUW"));
+                .thenReturn(new DuelIdentityClient.DuelIdentity(challenger, "host-puuid-00000001", "Verified Host#EUW", "EUW"));
         when(fixture.identities.resolve(opponent))
-                .thenReturn(new DuelIdentityClient.DuelIdentity(opponent, "Verified Guest#EUW", "EUW"));
+                .thenReturn(new DuelIdentityClient.DuelIdentity(opponent, "guest-puuid-0000001", "Verified Guest#EUW", "EUW"));
         when(fixture.matches.findActiveForPlayer(any())).thenReturn(Optional.empty());
         when(fixture.challenges.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -44,9 +44,9 @@ class DuelChallengeServiceTest {
         UUID challenger = UUID.randomUUID();
         UUID opponent = UUID.randomUUID();
         when(fixture.identities.resolve(challenger))
-                .thenReturn(new DuelIdentityClient.DuelIdentity(challenger, "Host Name#EUW", "EUW"));
+                .thenReturn(new DuelIdentityClient.DuelIdentity(challenger, "host-puuid-00000001", "Host Name#EUW", "EUW"));
         when(fixture.identities.resolve(opponent))
-                .thenReturn(new DuelIdentityClient.DuelIdentity(opponent, "Guest Name#NA1", "NA"));
+                .thenReturn(new DuelIdentityClient.DuelIdentity(opponent, "guest-puuid-0000001", "Guest Name#NA1", "NA"));
 
         assertThatThrownBy(() -> fixture.service.create(challenger, new CreateDuelChallengeRequest(opponent)))
                 .isInstanceOf(ResponseStatusException.class)

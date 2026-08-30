@@ -18,7 +18,7 @@ class DuelWatcherService {
     private static final Duration MAX_CLOCK_SKEW = Duration.ofSeconds(30);
     private static final Set<String> STATES = Set.of("ISSUED", "LCU_CONNECTED", "LOBBY_CREATED",
             "INVITE_SENT", "JOINING", "JOINED", "BOTH_PRESENT", "CHAMP_SELECT_STARTED", "IN_GAME",
-            "OBJECTIVE_RECORDED", "ERROR");
+            "OBJECTIVE_RECORDED", "REVIEW_REQUIRED", "ERROR");
     private final DuelWatcherTokenRepository tokens;
     private final DuelWatcherObservationRepository observations;
     private final DuelChallengeRepository challenges;
@@ -27,6 +27,7 @@ class DuelWatcherService {
     private final LobbyCredentialService credentials;
     private final MatchApplicationService matchService;
     private final MatchRealtimeHub realtime;
+    private final DuelIdentityClient identities;
     private final Duration tokenTtl;
     private final SecureRandom random = new SecureRandom();
     private final Clock clock = Clock.systemUTC();
@@ -34,10 +35,12 @@ class DuelWatcherService {
     DuelWatcherService(DuelWatcherTokenRepository tokens, DuelWatcherObservationRepository observations,
             DuelChallengeRepository challenges, GameMatchRepository matches, MatchPlayerRepository players,
             LobbyCredentialService credentials, MatchApplicationService matchService, MatchRealtimeHub realtime,
+            DuelIdentityClient identities,
             @Value("${pinkward.duel.watcher-token-ttl:2h}") Duration tokenTtl) {
         this.tokens = tokens; this.observations = observations; this.challenges = challenges;
         this.matches = matches; this.players = players; this.credentials = credentials;
-        this.matchService = matchService; this.realtime = realtime; this.tokenTtl = tokenTtl;
+        this.matchService = matchService; this.realtime = realtime; this.identities = identities;
+        this.tokenTtl = tokenTtl;
     }
 
     @Transactional
@@ -69,20 +72,24 @@ class DuelWatcherService {
         UUID opponentId = host ? challenge.opponentId() : challenge.challengerId();
         String ownRiotId = host ? challenge.challengerRiotId() : challenge.opponentRiotId();
         String opponentRiotId = host ? challenge.opponentRiotId() : challenge.challengerRiotId();
+        DuelIdentityClient.DuelIdentity ownIdentity = identities.resolve(token.playerId());
+        if (!ownIdentity.riotId().equalsIgnoreCase(ownRiotId)) {
+            throw conflict("A Riot identity changed after this duel was accepted");
+        }
         token.touch(token.state(), clock.instant());
-        return new WatcherAssignment(match.id(), token.role(), token.playerId(), ownRiotId, opponentId,
-                opponentRiotId, match.region(), match.lobbyName(),
+        return new WatcherAssignment(match.id(), token.role(), token.playerId(), ownIdentity.puuid(), ownRiotId,
+                opponentId, opponentRiotId, match.region(), match.lobbyName(),
                 credentials.decrypt(match.lobbyPasswordEncrypted()), token.state(), token.expiresAt());
     }
 
     @Transactional
-    WatcherAssignment updateState(String rawToken, UUID matchId, String requestedState) {
+    WatcherStateResponse updateState(String rawToken, UUID matchId, String requestedState) {
         String state = requestedState == null ? "" : requestedState.trim().toUpperCase(Locale.ROOT);
         if (!STATES.contains(state)) throw bad("Unsupported watcher state");
         DuelWatcherToken token = authenticate(rawToken, matchId);
         token.touch(state, clock.instant());
         realtime.publishAfterCommit(List.of(token.playerId()), "DUEL_WATCHER_STATE");
-        return assignment(rawToken, matchId);
+        return new WatcherStateResponse(matchId, state, token.expiresAt());
     }
 
     @Transactional

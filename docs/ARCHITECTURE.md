@@ -174,9 +174,19 @@ LCU identity from its loopback watcher and completes its own challenge with the
 authenticated `profile:write` token. The watcher cannot complete a link and no
 longer owns `service:profile:link`.
 
+The browser first obtains an ephemeral loopback session from `POST /v1/session`
+and sends `X-Showdown-Watcher-Token` on identity, status and automation calls.
+The token remains in memory and is renegotiated once after a `401` or `403`, so a
+Watcher restart does not require a browser reload. This local challenge records
+an account detected by LCU; without Riot RSO it is not cryptographic proof of
+Riot-account ownership against a modified local binary.
+
 The host watcher creates the named 1v1 lobby, resolves and invites the guest,
 waits for two members and starts champion select. The guest first tries a direct
 join by lobby name/password, then accepts the received invitation as fallback.
+Before either flow mutates LCU state, Match Service returns the authenticated
+player's authoritative PUUID and the Watcher compares it, plus the complete Riot
+ID, with `/lol-summoner/v1/current-summoner`. A mismatch aborts the flow.
 LCU endpoints are intentionally isolated because Riot does not guarantee their
 stability. Live game observations use the local Live Client Data API and never
 read process memory or inject code.
@@ -196,9 +206,12 @@ ranked result is committed only after both player watchers report the
 same winner for the same first objective (`FIRST_BLOOD`, `FIRST_TOWER` or
 `FIRST_TO_100_CS`). A disagreement leaves the duel unresolved for review and
 cannot update Glicko-2.
+If an event objective and a 100-CS threshold crossing are first visible in the
+same one-second observation cycle, the watcher reports `REVIEW_REQUIRED` and
+submits neither candidate as the winner.
 
 Direct-duel creation accepts only the opponent's Showdown UUID. Match Service
-resolves both verified Riot identities through Player Service using its own
+resolves both server-owned, locally detected Riot identities through Player Service using its own
 `service:profile:read` client credential, rejects cross-region pairs and stores
 the server-owned Riot IDs and region. The browser cannot choose the identities
 that drive lobby automation or result consensus.

@@ -54,6 +54,7 @@ class DuelIdentityClient {
                     .retrieve()
                     .body(DuelIdentity.class);
             if (identity == null || !playerId.equals(identity.playerId())
+                    || identity.puuid() == null || identity.puuid().isBlank()
                     || identity.riotId() == null || identity.region() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Player identity response is invalid");
             }
@@ -84,5 +85,5 @@ class DuelIdentityClient {
         return token;
     }
 
-    record DuelIdentity(UUID playerId, String riotId, String region) {}
+    record DuelIdentity(UUID playerId, String puuid, String riotId, String region) {}
 }

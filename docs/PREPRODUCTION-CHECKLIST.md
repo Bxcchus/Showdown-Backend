@@ -34,10 +34,10 @@ Docker et GitHub Actions. Les actions tierces sont référencées par SHA.
 
 ## Preuves locales du 30 août 2026
 
-- Maven `verify` sous Java 21 : 86 tests, aucun échec ni test ignoré ;
+- Maven `verify` sous Java 21 : 88 tests, aucun échec ni test ignoré ;
 - OWASP Dependency-Check 12.1.8 : analyse NVD, KEV et RetireJS réussie avec
   seuil bloquant CVSS 7, après mise à jour de Tomcat vers 11.0.25 ;
-- Watcher Rust : formatage, Clippy sans avertissement, 26 tests et `cargo audit`
+- Watcher Rust : formatage, Clippy sans avertissement, 29 tests et `cargo audit`
   réussis ;
 - frontend : 119 tests Vitest, 21 parcours Playwright, lint, build et
   `npm audit` réussis ;

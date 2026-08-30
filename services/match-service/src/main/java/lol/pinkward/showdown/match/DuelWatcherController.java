@@ -16,7 +16,7 @@ class DuelWatcherController {
             @RequestHeader("X-Watcher-Token") String watcherToken) {
         return watchers.assignment(watcherToken, matchId);
     }
-    @PutMapping("/state") WatcherAssignment state(@PathVariable UUID matchId,
+    @PutMapping("/state") WatcherStateResponse state(@PathVariable UUID matchId,
             @RequestHeader("X-Watcher-Token") String watcherToken,
             @Valid @RequestBody WatcherStateRequest request) {
         return watchers.updateState(watcherToken, matchId, request.state());

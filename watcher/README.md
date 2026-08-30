@@ -13,10 +13,13 @@ d'état et d'automatisation exigent une session locale éphémère que seules le
 origines web explicitement autorisées peuvent demander.
 
 La liaison Riot utilise un challenge backend à usage unique et valable 90
-secondes. Le Watcher relit le PUUID et le Riot ID dans le LCU, mais ne possède
-plus le scope permettant de finaliser la liaison. Le navigateur authentifié
-transmet l'identité au challenge qui lui appartient ; un Watcher distribué ne
-peut donc pas lier un compte sans la session du joueur.
+secondes. Le navigateur crée son challenge, ouvre une session locale éphémère
+avec le Watcher, relit le PUUID, le Riot ID, l'icône et le niveau dans le LCU,
+puis complète son propre challenge authentifié. Le Watcher ne possède plus le
+scope permettant de finaliser la liaison et toutes ses routes sensibles exigent
+`X-Showdown-Watcher-Token`. Cette liaison signifie « compte détecté localement » :
+sans Riot RSO, elle ne constitue pas une preuve cryptographique de propriété face
+à un utilisateur qui modifierait son propre binaire.
 
 Pour un duel de test contre un bot, le Watcher récupère l'affectation et les
 identifiants du lobby via une route technique, observe l'objectif dans la Live
@@ -54,4 +57,15 @@ Les origines localhost sont ajoutées uniquement en développement. En productio
 `SHOWDOWN_WEB_ORIGINS` doit contenir une liste exacte d'origines HTTPS et
 l'adresse d'écoute reste obligatoirement loopback.
 
-Les routes LCU ne sont pas une API Riot officiellement supportée et peuvent changer avec une mise à jour du client. L'adaptateur est volontairement isolé dans ce binaire.
+Avant toute mutation LCU d'un duel humain, le Watcher compare le PUUID et le Riot
+ID complets du compte actuellement ouvert avec l'affectation signée par le
+backend. Un cycle où un événement et le passage à 100 CS apparaissent ensemble
+est placé en `REVIEW_REQUIRED` et ne publie aucun résultat.
+
+Les routes LCU ne sont pas une API Riot officiellement supportée et peuvent
+changer avec une mise à jour du client. L'adaptateur est volontairement isolé
+dans ce binaire. Après chaque patch League, ouvrir le client puis exécuter :
+
+```powershell
+.\scripts\test-watcher-lcu-compatibility.ps1
+```

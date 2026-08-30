@@ -33,9 +33,10 @@ class PlayerInternalController {
                 .cacheControl(CacheControl.noStore())
                 .body(new DuelIdentity(
                         profile.playerId(),
+                        profile.riotPuuid(),
                         profile.riotGameName() + "#" + profile.riotTagLine(),
                         profile.region()));
     }
 
-    record DuelIdentity(UUID playerId, String riotId, String region) {}
+    record DuelIdentity(UUID playerId, String puuid, String riotId, String region) {}
 }
