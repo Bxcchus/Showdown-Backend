@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,9 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -28,6 +32,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
@@ -106,6 +111,8 @@ public class AuthorizationServerConfiguration {
             }
             http.oauth2Login(oauth -> oauth
                     .loginPage(loginUrl(true, registrationId))
+                    .userInfoEndpoint(userInfo -> userInfo
+                            .userAuthoritiesMapper(oidcAuthorizationCodeAuthorityMapper()))
                     .successHandler(successHandler));
         } else {
             http.formLogin(form -> form.loginPage("/login")
@@ -119,6 +126,21 @@ public class AuthorizationServerConfiguration {
                         }));
         }
         return http.build();
+    }
+
+    /*
+     * Spring Security 7.1.1 does not add the authorization-code factor to an
+     * OIDC login. Spring Authorization Server needs that factor to derive the
+     * auth_time of the ID token it issues. Keep this mapper until the upstream
+     * OidcAuthorizationCodeAuthenticationProvider fix is available.
+     */
+    static GrantedAuthoritiesMapper oidcAuthorizationCodeAuthorityMapper() {
+        return authorities -> {
+            Set<GrantedAuthority> mapped = new LinkedHashSet<>(authorities);
+            mapped.add(FactorGrantedAuthority.fromAuthority(
+                    FactorGrantedAuthority.AUTHORIZATION_CODE_AUTHORITY));
+            return mapped;
+        };
     }
 
     @Bean
@@ -393,13 +415,19 @@ public class AuthorizationServerConfiguration {
 
     static PlayerIdentity playerIdentity(Authentication authentication) {
         if (authentication instanceof OAuth2AuthenticationToken oauth) {
-            String registrationId = oauth.getAuthorizedClientRegistrationId();
-            String providerSubject = oauth.getPrincipal().getName();
+            if (!(oauth.getPrincipal() instanceof OidcUser oidcUser)) {
+                throw new IllegalArgumentException("External identity principal must be an OIDC user");
+            }
+            String issuer = oidcUser.getIssuer() == null ? null : oidcUser.getIssuer().toExternalForm();
+            String providerSubject = oidcUser.getSubject();
+            if (issuer == null || issuer.isBlank() || providerSubject == null || providerSubject.isBlank()) {
+                throw new IllegalArgumentException("OIDC identity requires non-empty issuer and subject claims");
+            }
             UUID playerId = UUID.nameUUIDFromBytes(
-                    ("pinkward-oidc-player:" + registrationId + ':' + providerSubject)
+                    ("pinkward-oidc-player:" + issuer + '\0' + providerSubject)
                             .getBytes(StandardCharsets.UTF_8));
-            Object preferred = oauth.getPrincipal().getAttributes().get("preferred_username");
-            Object name = oauth.getPrincipal().getAttributes().get("name");
+            Object preferred = oidcUser.getAttributes().get("preferred_username");
+            Object name = oidcUser.getAttributes().get("name");
             String candidate = preferred instanceof String value && !value.isBlank()
                     ? value
                     : name instanceof String value && !value.isBlank() ? value : "Player";

@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory)][string]$BackupFile,
     [string]$EnvironmentFile,
     [string[]]$ComposeFiles,
+    [ValidatePattern('^[a-z0-9][a-z0-9_-]{2,62}$')][string]$ProjectName,
     [switch]$Force
 )
 
@@ -44,7 +45,11 @@ foreach ($composeFile in $resolvedComposeFiles) {
         throw "Compose file is missing: $composeFile"
     }
 }
-$composeArguments = @('compose', '--env-file', $envFile)
+$composeArguments = @('compose')
+if (-not [string]::IsNullOrWhiteSpace($ProjectName)) {
+    $composeArguments += @('--project-name', $ProjectName)
+}
+$composeArguments += @('--env-file', $envFile)
 foreach ($composeFile in $resolvedComposeFiles) { $composeArguments += @('-f', $composeFile) }
 & docker @composeArguments exec -T $target.Service pg_restore -U $target.User `
     -d $target.Database --clean --if-exists --no-owner --exit-on-error "/backups/$([IO.Path]::GetFileName($source))"

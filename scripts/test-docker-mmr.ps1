@@ -65,6 +65,12 @@ $environmentOverrides = @{
 }
 $previousEnvironment = @{}
 $results = @()
+$sharedBuildImages = @(
+    'pinkward/postgres:17.11-hardened',
+    'pinkward/redis:8.10.1-hardened',
+    'pinkward/rabbitmq:4.3.5-management-hardened',
+    'pinkward/rabbitmq-bootstrap:8.21.0-hardened'
+)
 
 function Invoke-E2eCompose {
     param([Parameter(ValueFromRemainingArguments)][string[]]$Arguments)
@@ -148,10 +154,29 @@ catch {
 finally {
     if (-not $KeepStack) {
         try {
-            Invoke-E2eCompose down --volumes --remove-orphans --rmi local
+            $projectImages = @(& docker compose `
+                    --project-name $ProjectName `
+                    --env-file $environmentFile `
+                    -f $composeFile `
+                    config --images) | Where-Object { $_ -like "$ProjectName-*" } | Sort-Object -Unique
+            Invoke-E2eCompose down --volumes --remove-orphans
+            foreach ($image in $projectImages) {
+                & docker image rm $image | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Could not remove isolated integration-test image $image"
+                }
+            }
+            foreach ($image in $sharedBuildImages) {
+                & docker image inspect $image *> $null
+                if ($LASTEXITCODE -ne 0) {
+                    throw "MMR cleanup removed shared image $image"
+                }
+            }
+            Write-Host 'Shared PostgreSQL, Redis and RabbitMQ image tags were retained.'
         }
         catch {
             Write-Warning "Could not remove isolated Docker project $ProjectName"
+            throw
         }
         if (Test-Path -LiteralPath $environmentFile) {
             Remove-Item -LiteralPath $environmentFile -Force

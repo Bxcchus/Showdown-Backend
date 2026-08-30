@@ -8,6 +8,8 @@ param(
     [Parameter(ParameterSetName = 'S3')][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9/_.-]{0,127}$')][string]$S3Prefix = 'showdown-production',
     [Parameter(ParameterSetName = 'S3')][string]$AwsProfile,
     [string]$EnvironmentFile,
+    [string[]]$ComposeFiles,
+    [ValidatePattern('^[a-z0-9][a-z0-9_-]{2,62}$')][string]$ProjectName,
     [ValidateRange(1, 365)][int]$RetentionDays = 30
 )
 
@@ -29,10 +31,11 @@ $productionEnvironment = if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
 } else {
     [IO.Path]::GetFullPath((Join-Path $root $EnvironmentFile))
 }
-$composeFiles = @(
-    (Join-Path $root 'infra/compose.yml'),
-    (Join-Path $root 'infra/compose.production.yml')
-)
+$resolvedComposeFiles = if ($null -eq $ComposeFiles -or $ComposeFiles.Count -eq 0) {
+    @((Join-Path $root 'infra/compose.yml'), (Join-Path $root 'infra/compose.production.yml'))
+} else {
+    @($ComposeFiles)
+}
 $before = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 if (Test-Path -LiteralPath $backupRoot) {
     Get-ChildItem -LiteralPath $backupRoot -File | ForEach-Object { [void]$before.Add($_.FullName) }
@@ -42,8 +45,13 @@ $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('showdown-production-back
 $published = $false
 
 try {
-    & (Join-Path $PSScriptRoot 'backup-postgres.ps1') -RetentionDays $RetentionDays `
-        -EnvironmentFile $productionEnvironment -ComposeFiles $composeFiles
+    $backupParameters = @{
+        RetentionDays = $RetentionDays
+        EnvironmentFile = $productionEnvironment
+        ComposeFiles = $resolvedComposeFiles
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ProjectName)) { $backupParameters.ProjectName = $ProjectName }
+    & (Join-Path $PSScriptRoot 'backup-postgres.ps1') @backupParameters
     if ($LASTEXITCODE -ne 0) { throw 'Plaintext database backup failed.' }
     $manifest = Get-ChildItem -LiteralPath $backupRoot -Filter 'manifest-*.json' |
         Where-Object { -not $before.Contains($_.FullName) } |

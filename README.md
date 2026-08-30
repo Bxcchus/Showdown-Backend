@@ -134,7 +134,35 @@ isolated databases/Redis/RabbitMQ volumes, and removes the entire E2E project in
 a `finally` block. It never reads or modifies the persistent
 `pinkward-showdown` volumes. Use `-Scenario OneVsOne` or
 `-Scenario FiveVsFive` to run only one path, and `-KeepStack` only when Docker
-logs or database state need manual inspection.
+logs or database state need manual inspection. Cleanup removes only images
+owned by the disposable project and explicitly verifies that the shared
+PostgreSQL, Redis and RabbitMQ image tags still exist.
+
+Run the external OIDC flow against an isolated local provider. The test performs
+authorization code + PKCE, callback handling, player creation and a second login
+that must resolve to the same player identity:
+
+~~~powershell
+.\scripts\test-local-oidc.ps1
+~~~
+
+Validate the production Compose contract without contacting the Internet. The
+test renders fictitious HTTPS domains and the simulated OIDC provider, then
+checks local-account disabling, callback URL, secure cookies, exact CORS origins
+and internal-service port isolation:
+
+~~~powershell
+.\scripts\test-production-oidc-configuration.ps1
+~~~
+
+Prove encrypted backup recovery for all four PostgreSQL databases in disposable
+source and target stacks. This test writes unique probes, creates an `age`
+archive in a second local directory, validates its checksum and retention,
+restores it into the isolated target stack and verifies every probe:
+
+~~~powershell
+.\scripts\test-encrypted-backup-restore.ps1
+~~~
 
 In the local Docker profile, a real EUW player waiting alone is joined by bots
 after five seconds. Bots are labelled in the web ready-check, receive roles and

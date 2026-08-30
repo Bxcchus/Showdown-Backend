@@ -8,6 +8,8 @@ param(
     [Parameter(ParameterSetName = 'S3')][string]$AwsProfile,
     [Parameter(Mandatory)][string]$AgeIdentityFile,
     [string]$EnvironmentFile,
+    [string[]]$ComposeFiles,
+    [ValidatePattern('^[a-z0-9][a-z0-9_-]{2,62}$')][string]$ProjectName,
     [switch]$Force
 )
 
@@ -30,10 +32,11 @@ $productionEnvironment = if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
 } else {
     [IO.Path]::GetFullPath((Join-Path $root $EnvironmentFile))
 }
-$composeFiles = @(
-    (Join-Path $root 'infra/compose.yml'),
-    (Join-Path $root 'infra/compose.production.yml')
-)
+$resolvedComposeFiles = if ($null -eq $ComposeFiles -or $ComposeFiles.Count -eq 0) {
+    @((Join-Path $root 'infra/compose.yml'), (Join-Path $root 'infra/compose.production.yml'))
+} else {
+    @($ComposeFiles)
+}
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('showdown-production-restore-' + [Guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
 
@@ -99,8 +102,15 @@ try {
     $staged = Join-Path $backupRoot ('restore-' + [Guid]::NewGuid().ToString('N') + '.dump')
     Copy-Item -LiteralPath $dump.FullName -Destination $staged
     try {
-        & (Join-Path $PSScriptRoot 'restore-postgres.ps1') -Database $Database -BackupFile $staged `
-            -EnvironmentFile $productionEnvironment -ComposeFiles $composeFiles -Force
+        $restoreParameters = @{
+            Database = $Database
+            BackupFile = $staged
+            EnvironmentFile = $productionEnvironment
+            ComposeFiles = $resolvedComposeFiles
+            Force = $true
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ProjectName)) { $restoreParameters.ProjectName = $ProjectName }
+        & (Join-Path $PSScriptRoot 'restore-postgres.ps1') @restoreParameters
     }
     finally {
         if (Test-Path -LiteralPath $staged) { Remove-Item -LiteralPath $staged -Force }

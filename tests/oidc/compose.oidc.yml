@@ -1,0 +1,36 @@
+services:
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:6.0.2@sha256:b538810afd589d42fbfb856c588c2065eaeed1dc528d6c532972048e67fc2aff
+    ports:
+      - "127.0.0.1:${OIDC_MOCK_PORT:?OIDC_MOCK_PORT is required}:${OIDC_MOCK_PORT}"
+    environment:
+      SERVER_PORT: "${OIDC_MOCK_PORT}"
+      LOG_LEVEL: WARN
+      JSON_CONFIG: >-
+        {"interactiveLogin":false,"tokenCallbacks":[{"issuerId":"showdown","requestMappings":[{"requestParam":"code","match":"*","claims":{"sub":"showdown-local-oidc-player","preferred_username":"OIDC Local Player","name":"OIDC Local Player","auth_time":1788076800}}]}]}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${OIDC_MOCK_PORT}/isalive"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+    networks:
+      - gateway
+      - edge
+
+  identity-service:
+    environment:
+      LOCAL_IDENTITY_ENABLED: "false"
+      EXTERNAL_IDENTITY_ENABLED: "true"
+      EXTERNAL_IDENTITY_REGISTRATION_ID: production
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_PROVIDER: production
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_CLIENT_ID: showdown-local-test
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_CLIENT_SECRET: showdown-local-test-secret-not-for-production
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_CLIENT_AUTHENTICATION_METHOD: client_secret_basic
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_REDIRECT_URI: "{baseUrl}/login/oauth2/code/{registrationId}"
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_SCOPE: openid,profile
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_PRODUCTION_ISSUER_URI: http://mock-oidc:${OIDC_MOCK_PORT}/showdown
+    depends_on:
+      mock-oidc:
+        condition: service_healthy
