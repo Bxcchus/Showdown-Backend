@@ -27,9 +27,10 @@ class PlayerProfileServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         var service = service(repository);
 
-        PlayerProfileSnapshot result = service.me(playerId, "local-player");
+        PlayerProfileSnapshot result = service.me(playerId, "alexis@example.com");
 
-        assertThat(result.displayName()).isEqualTo("local-player");
+        assertThat(result.displayName()).startsWith("Player-").doesNotContain("@", "alexis");
+        assertThat(result.onboardingComplete()).isFalse();
         assertThat(result.region()).isEqualTo("EUW");
         assertThat(result.primaryRole()).isEqualTo("MID");
         assertThat(result.secondaryRole()).isEqualTo("JUNGLE");
@@ -51,6 +52,7 @@ class PlayerProfileServiceTest {
         assertThat(result.region()).isEqualTo("NA");
         assertThat(result.primaryRole()).isEqualTo("JUNGLE");
         assertThat(result.secondaryRole()).isEqualTo("MID");
+        assertThat(result.onboardingComplete()).isTrue();
     }
 
     @Test

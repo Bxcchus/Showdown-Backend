@@ -428,12 +428,7 @@ public class AuthorizationServerConfiguration {
             UUID playerId = UUID.nameUUIDFromBytes(
                     ("pinkward-oidc-player:" + issuer + '\0' + providerSubject)
                             .getBytes(StandardCharsets.UTF_8));
-            Object preferred = oidcUser.getAttributes().get("preferred_username");
-            Object name = oidcUser.getAttributes().get("name");
-            String candidate = preferred instanceof String value && !value.isBlank()
-                    ? value
-                    : name instanceof String value && !value.isBlank() ? value : "Player";
-            return new PlayerIdentity(playerId, externalDisplayName(candidate, playerId));
+            return new PlayerIdentity(playerId, externalDisplayName(playerId));
         }
         String username = authentication.getName();
         UUID playerId = UUID.nameUUIDFromBytes(
@@ -441,18 +436,10 @@ public class AuthorizationServerConfiguration {
         return new PlayerIdentity(playerId, username);
     }
 
-    private static String externalDisplayName(String candidate, UUID playerId) {
-        String normalized = candidate.strip()
-                .replaceAll("\\s+", " ")
-                .replaceAll("[^\\p{L}\\p{N}_. -]", "")
-                .strip();
-        if (normalized.length() < 3) normalized = "Player";
-        String suffix = "-" + playerId.toString().substring(0, 6);
-        int maximumBaseLength = 24 - suffix.length();
-        if (normalized.length() > maximumBaseLength) {
-            normalized = normalized.substring(0, maximumBaseLength).stripTrailing();
-        }
-        return normalized + suffix;
+    private static String externalDisplayName(UUID playerId) {
+        // The OIDC name can be an email address. Keep it out of access tokens and
+        // consent screens until the player explicitly chooses a public nickname.
+        return "Player-" + playerId.toString().substring(0, 8);
     }
 
     record PlayerIdentity(UUID playerId, String displayName) {}

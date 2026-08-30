@@ -115,7 +115,9 @@ class AuthorizationServerConfigurationTest {
         var second = AuthorizationServerConfiguration.playerIdentity(authentication);
 
         assertThat(first.playerId()).isEqualTo(second.playerId());
-        assertThat(first.displayName()).startsWith("Alexis External-").hasSizeLessThanOrEqualTo(24);
+        assertThat(first.displayName())
+                .startsWith("Player-")
+                .doesNotContain("Alexis", "External", "@").hasSizeLessThanOrEqualTo(24);
 
         var renamedRegistration = new OAuth2AuthenticationToken(
                 principal, principal.getAuthorities(), "renamed-registration");
