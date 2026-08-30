@@ -26,6 +26,7 @@ class PlayerInternalControllerTest {
         var response = new PlayerInternalController(profiles).duelIdentity(playerId);
 
         assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().puuid()).isEqualTo("verified-riot-puuid-0001");
         assertThat(response.getBody().riotId()).isEqualTo("Verified Player#EUW");
         assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
     }

@@ -130,6 +130,8 @@ $second = Invoke-RestMethod "$BaseUri/api/v2/watchers/duels/$($accepted.matchId)
     -Headers (WatcherAuth $guestWatcher.token $resultToken) -ContentType 'application/json' -Body $observation
 
 if ($hostAssignment.role -ne 'HOST' -or $guestAssignment.role -ne 'GUEST' `
+        -or $hostAssignment.ownPuuid -ne 'smoke-duel-host-puuid-0001' `
+        -or $guestAssignment.ownPuuid -ne 'smoke-duel-guest-puuid-0001' `
         -or $first.status -ne 'WAITING_FOR_SECOND_WATCHER' -or $second.status -ne 'VERIFIED') {
     throw 'Direct duel watcher consensus is inconsistent'
 }
@@ -141,6 +143,8 @@ if ($hostAssignment.role -ne 'HOST' -or $guestAssignment.role -ne 'GUEST' `
     guest = "$($guestProfile.displayName) -> $($guestProfile.riotId)"
     host_watcher = $hostAssignment.role
     guest_watcher = $guestAssignment.role
+    host_expected_puuid = $hostAssignment.ownPuuid
+    guest_expected_puuid = $guestAssignment.ownPuuid
     first_observation = $first.status
     second_observation = $second.status
     glicko2_result = 'RECORDED'

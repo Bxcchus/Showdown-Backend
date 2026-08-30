@@ -150,6 +150,7 @@ struct BotOutcome {
 struct Assignment {
     match_id: String,
     role: String,
+    own_puuid: String,
     own_riot_id: String,
     opponent_riot_id: String,
     lobby_name: String,
@@ -472,7 +473,12 @@ async fn start(
             Ok(()) => set_job(&child, "COMPLETED", None).await,
             Err(message) => {
                 error!(%message, "duel watcher failed");
-                set_job(&child, "ERROR", Some(bounded_message(&message))).await;
+                let state = if message.starts_with("REVUE_REQUISE:") {
+                    "REVIEW_REQUIRED"
+                } else {
+                    "ERROR"
+                };
+                set_job(&child, state, Some(bounded_message(&message))).await;
             }
         }
     });
@@ -507,7 +513,12 @@ async fn start_bot_duel(
             Ok(()) => complete_job(&child).await,
             Err(message) => {
                 error!(%message, "bot duel watcher failed");
-                set_job(&child, "ERROR", Some(bounded_message(&message))).await;
+                let state = if message.starts_with("REVUE_REQUISE:") {
+                    "REVIEW_REQUIRED"
+                } else {
+                    "ERROR"
+                };
+                set_job(&child, state, Some(bounded_message(&message))).await;
             }
         }
     });
@@ -632,6 +643,7 @@ async fn run_duel(state: AppState, request: StartRequest) -> Result<(), String> 
         return Ok(());
     }
     let lcu = Lcu::discover().map_err(|e| e.1)?;
+    verify_current_summoner(&lcu, &assignment.own_puuid, &assignment.own_riot_id).await?;
     report_state(
         &state,
         &assignment.match_id,
@@ -676,6 +688,43 @@ async fn host_lobby(
         .await
         .map_err(|e| e.1)?;
     progress(state, &a.match_id, token, "CHAMP_SELECT_STARTED").await
+}
+
+async fn verify_current_summoner(
+    lcu: &Lcu,
+    expected_puuid: &str,
+    expected_riot_id: &str,
+) -> Result<(), String> {
+    if expected_puuid.trim().len() < 16 {
+        return Err("L'affectation ne contient pas de PUUID local valide".into());
+    }
+    let summoner = lcu
+        .get("/lol-summoner/v1/current-summoner")
+        .await
+        .map_err(|error| error.1)?;
+    validate_current_summoner(&summoner, expected_puuid, expected_riot_id)
+}
+
+fn validate_current_summoner(
+    summoner: &Value,
+    expected_puuid: &str,
+    expected_riot_id: &str,
+) -> Result<(), String> {
+    let observed_puuid = summoner
+        .get("puuid")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim();
+    if observed_puuid != expected_puuid.trim() {
+        return Err("Le compte League ouvert ne correspond pas au joueur Showdown affecté (PUUID différent)".into());
+    }
+    let observed_riot_id = riot_id_from_value(summoner).ok_or_else(|| {
+        "Le client League ne fournit pas le Riot ID complet du compte ouvert".to_owned()
+    })?;
+    if !full_riot_id_eq(&observed_riot_id, expected_riot_id) {
+        return Err("Le Riot ID du compte League ouvert ne correspond pas à l'affectation".into());
+    }
+    Ok(())
 }
 
 async fn guest_lobby(
@@ -843,23 +892,40 @@ async fn watch_game(state: &AppState, token: &str, a: &Assignment) -> Result<(),
     let mut cs = HumanCsTracker::default();
     for _ in 0..7200 {
         let players = live.get(LiveEndpoint::PlayerList).await.ok();
-        if let Ok(data) = live.get(LiveEndpoint::EventData).await {
+        let event_winner = if let Ok(data) = live.get(LiveEndpoint::EventData).await {
             if mark_once(&mut in_game_reported) {
                 report_state(state, &a.match_id, token, "IN_GAME").await?;
             }
-            if let Some(players) = players.as_ref()
-                && let Some((objective, winner)) =
-                    find_winner(&data, players, &a.own_riot_id, &a.opponent_riot_id)?
-            {
+            if let Some(players) = players.as_ref() {
+                find_winner(&data, players, &a.own_riot_id, &a.opponent_riot_id)?
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let cs_winner = if let Some(players) = players.as_ref() {
+            cs.observe(players, &a.own_riot_id, &a.opponent_riot_id)?
+        } else {
+            None
+        };
+        if event_winner.is_some() && cs_winner.is_some() {
+            report_state(state, &a.match_id, token, "REVIEW_REQUIRED").await?;
+            return reject_ambiguous_cycle(true, true);
+        }
+        match (event_winner, cs_winner) {
+            (Some(_), Some(_)) => {
+                unreachable!("the ambiguity guard returned before this branch")
+            }
+            (Some((objective, winner)), None) => {
                 report_observation(state, token, a, objective, &winner).await?;
                 return Ok(());
             }
-        }
-        if let Some(players) = players.as_ref()
-            && let Some(winner) = cs.observe(players, &a.own_riot_id, &a.opponent_riot_id)?
-        {
-            report_observation(state, token, a, "FIRST_TO_100_CS", &winner).await?;
-            return Ok(());
+            (None, Some(winner)) => {
+                report_observation(state, token, a, "FIRST_TO_100_CS", &winner).await?;
+                return Ok(());
+            }
+            (None, None) => {}
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
@@ -905,29 +971,48 @@ async fn watch_bot_game(
         if entered_game {
             let players = live.get(LiveEndpoint::PlayerList).await.ok();
 
-            if let Ok(events) = live.get(LiveEndpoint::EventData).await
-                && let Some((objective, won)) =
-                    find_bot_winner(&events, own_game_name, players.as_ref())?
-            {
-                return Ok(BotOutcome {
-                    objective,
-                    human_won: won,
-                });
-            }
-
-            if let Some(players) = players.as_ref()
-                && let Some(won) = cs.observe(players, own_game_name)?
-            {
-                return Ok(BotOutcome {
-                    objective: "FIRST_TO_100_CS",
-                    human_won: won,
-                });
+            let event_winner = if let Ok(events) = live.get(LiveEndpoint::EventData).await {
+                find_bot_winner(&events, own_game_name, players.as_ref())?
+            } else {
+                None
+            };
+            let cs_winner = if let Some(players) = players.as_ref() {
+                cs.observe(players, own_game_name)?
+            } else {
+                None
+            };
+            reject_ambiguous_cycle(event_winner.is_some(), cs_winner.is_some())?;
+            match (event_winner, cs_winner) {
+                (Some(_), Some(_)) => {
+                    unreachable!("the ambiguity guard returned before this branch")
+                }
+                (Some((objective, won)), None) => {
+                    return Ok(BotOutcome {
+                        objective,
+                        human_won: won,
+                    });
+                }
+                (None, Some(won)) => {
+                    return Ok(BotOutcome {
+                        objective: "FIRST_TO_100_CS",
+                        human_won: won,
+                    });
+                }
+                (None, None) => {}
             }
         }
 
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
     Err("Aucun objectif 1v1 détecté avant expiration du watcher".into())
+}
+
+fn reject_ambiguous_cycle(event_detected: bool, cs_detected: bool) -> Result<(), String> {
+    if event_detected && cs_detected {
+        Err("REVUE_REQUISE: un événement de victoire et le passage à 100 CS ont été observés dans le même cycle".into())
+    } else {
+        Ok(())
+    }
 }
 
 fn find_winner(
@@ -2164,5 +2249,46 @@ mod tests {
         let mut tracker = BotCsTracker::default();
         assert_eq!(tracker.observe(&before, "Claude Code#JAVA"), Ok(None));
         assert_eq!(tracker.observe(&after, "Claude Code#JAVA"), Ok(Some(false)));
+    }
+
+    #[test]
+    fn refuses_a_different_local_puuid_before_lobby_actions() {
+        let summoner = json!({
+            "puuid":"another-player-puuid-0001",
+            "gameName":"Claude Code",
+            "tagLine":"JAVA"
+        });
+        assert!(
+            validate_current_summoner(&summoner, "expected-player-puuid-001", "Claude Code#JAVA")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn accepts_only_the_expected_local_puuid_and_full_riot_id() {
+        let summoner = json!({
+            "puuid":"expected-player-puuid-001",
+            "gameName":"Claude Code",
+            "tagLine":"JAVA"
+        });
+        assert!(
+            validate_current_summoner(&summoner, "expected-player-puuid-001", "Claude Code#JAVA")
+                .is_ok()
+        );
+        assert!(
+            validate_current_summoner(&summoner, "expected-player-puuid-001", "Claude Code#WRONG")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn requires_review_when_an_event_and_one_hundred_cs_share_a_poll_cycle() {
+        assert!(
+            reject_ambiguous_cycle(true, true)
+                .unwrap_err()
+                .starts_with("REVUE_REQUISE:")
+        );
+        assert!(reject_ambiguous_cycle(true, false).is_ok());
+        assert!(reject_ambiguous_cycle(false, true).is_ok());
     }
 }

@@ -198,7 +198,7 @@ challenge, reads the LCU identity from the loopback watcher, and completes the
 player-bound challenge with the authenticated browser token. The watcher has no
 Riot-link scope. Then open **Duel** and follow invitation → acceptance → watcher.
 Both watchers must agree on first blood, first tower or first to 100 CS before
-Glicko-2 is updated. Match creation resolves both verified Riot identities from
+Glicko-2 is updated. Match creation resolves both server-owned, locally detected Riot identities from
 Player Service; the browser sends only the opponent's Showdown identifier.
 Watcher submissions require both a match-scoped one-use token and the native
 agent's short-lived `service:duel:observe` OAuth credential. Production uses a

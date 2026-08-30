@@ -224,7 +224,16 @@ interface DuelChallenge {
   expiresAt: string
 }
 
-interface WatcherIdentity { gameName: string, tagLine: string, riotId: string }
+interface WatcherIdentity {
+  puuid: string
+  gameName: string
+  tagLine: string
+  riotId: string
+  profileIconId: number
+  summonerLevel: number
+}
+interface WatcherSession { token: string }
+interface RiotLinkChallenge { challengeId: string, expiresAt: string }
 interface WatcherToken { token: string, matchId: string, role: 'HOST' | 'GUEST', expiresAt: string }
 interface WatcherJob {
   matchId: string | null
@@ -232,6 +241,38 @@ interface WatcherJob {
   detail: string | null
   outcome: 'VICTORY' | 'DEFEAT' | null
   objective: 'FIRST_BLOOD' | 'FIRST_TOWER' | 'FIRST_TO_100_CS' | null
+}
+
+const WATCHER_BASE_URL = 'http://127.0.0.1:43991'
+let watcherSessionToken: string | null = null
+let watcherSessionRequest: Promise<string> | null = null
+
+async function createWatcherSession(): Promise<string> {
+  if (watcherSessionToken) return watcherSessionToken
+  if (!watcherSessionRequest) {
+    watcherSessionRequest = fetch(`${WATCHER_BASE_URL}/v1/session`, { method: 'POST' })
+      .then(async response => {
+        if (!response.ok) throw new Error('Le watcher local a refusé la session de ce site.')
+        const session = await response.json() as WatcherSession
+        if (!session.token) throw new Error('Le watcher a renvoyé une session locale invalide.')
+        watcherSessionToken = session.token
+        return session.token
+      })
+      .finally(() => { watcherSessionRequest = null })
+  }
+  return watcherSessionRequest
+}
+
+async function watcherFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  const token = await createWatcherSession()
+  const headers = new Headers(init.headers)
+  headers.set('X-Showdown-Watcher-Token', token)
+  const response = await fetch(`${WATCHER_BASE_URL}${path}`, { ...init, headers })
+  if (retry && (response.status === 401 || response.status === 403)) {
+    watcherSessionToken = null
+    return watcherFetch(path, init, false)
+  }
+  return response
 }
 
 interface PartyMember {
@@ -611,7 +652,7 @@ function App() {
     let stopped = false
     const checkWatcher = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:43991/health')
+        const response = await fetch(`${WATCHER_BASE_URL}/health`)
         if (!stopped) setWatcherOnline(response.ok)
       } catch {
         if (!stopped) setWatcherOnline(false)
@@ -627,7 +668,7 @@ function App() {
     let stopped = false
     const loadWatcherJob = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:43991/v1/duels/status')
+        const response = await watcherFetch('/v1/duels/status')
         if (!response.ok) throw new Error()
         const job = await response.json() as WatcherJob
         if (!stopped) {
@@ -1072,19 +1113,30 @@ function App() {
     setBusy(true)
     setProfileMessage(null)
     try {
-      const watcherResponse = await fetch('http://127.0.0.1:43991/v1/identity')
+      const challengeResponse = await authenticatedFetch('/api/v2/players/me/riot-link-challenges', {
+        method: 'POST',
+      })
+      if (!challengeResponse.ok) throw new Error('Impossible de créer le challenge de liaison Riot.')
+      const challenge = await challengeResponse.json() as RiotLinkChallenge
+      const watcherResponse = await watcherFetch('/v1/identity')
       if (!watcherResponse.ok) throw new Error('Lance le watcher et ouvre le client League avant de réessayer.')
       const identity = await watcherResponse.json() as WatcherIdentity
-      const response = await authenticatedFetch('/api/v2/players/me/riot-id', {
-        method: 'PUT',
+      const response = await authenticatedFetch(`/api/v2/players/me/riot-link-challenges/${challenge.challengeId}/complete`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameName: identity.gameName, tagLine: identity.tagLine }),
+        body: JSON.stringify({
+          puuid: identity.puuid,
+          gameName: identity.gameName,
+          tagLine: identity.tagLine,
+          profileIconId: identity.profileIconId,
+          summonerLevel: identity.summonerLevel,
+        }),
       })
       if (response.status === 409) throw new Error('Ce compte Riot est déjà lié à un autre profil Showdown.')
       if (!response.ok) throw new Error('La liaison Riot a été refusée.')
       applyProfile(await response.json() as PlayerProfile)
       setWatcherOnline(true)
-      setProfileMessage(`${identity.riotId} est maintenant lié à ce profil.`)
+      setProfileMessage(`${identity.riotId} a été détecté localement et lié à ce profil.`)
     } catch (error) {
       setWatcherOnline(false)
       setProfileMessage(error instanceof Error ? error.message : 'Watcher indisponible')
@@ -1098,7 +1150,7 @@ function App() {
     setDuelOpen(true)
     setDuelMessage(null)
     try {
-      const health = await fetch('http://127.0.0.1:43991/health')
+      const health = await fetch(`${WATCHER_BASE_URL}/health`)
       setWatcherOnline(health.ok)
       await loadDuels()
     } catch {
@@ -1154,7 +1206,7 @@ function App() {
         throw new Error('Impossible de créer le jeton temporaire du watcher.')
       }
       const issued = await response.json() as WatcherToken
-      const watcher = await fetch('http://127.0.0.1:43991/v1/duels/start', {
+      const watcher = await watcherFetch('/v1/duels/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1178,9 +1230,16 @@ function App() {
     return value.mode === 'ONE_V_ONE' && value.players.some(player => player.bot)
   }
 
+  function watcherStateLabel(state: string | undefined) {
+    if (!state) return watcherOnline ? 'Détecté' : 'À lancer'
+    if (state === 'REVIEW_REQUIRED') return 'Revue requise'
+    if (state === 'ERROR') return 'Erreur'
+    return state
+  }
+
   async function requestBotWatcher(value: CurrentMatch) {
     if (!value.lobbyName || !value.lobbyPassword) throw new Error('Les identifiants du lobby League sont indisponibles.')
-    const watcher = await fetch('http://127.0.0.1:43991/v1/bot-duels/start', {
+    const watcher = await watcherFetch('/v1/bot-duels/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1892,11 +1951,11 @@ function App() {
                   </div>
                 </div>
                 <div className="companion-state"><span>Application web</span><strong>Prête</strong></div>
-                <div className={isBotDuel(lobby) && watcherOnline && watcherJob?.state !== 'ERROR' ? 'companion-state' : 'companion-state muted'}><span>Watcher local</span><strong>{isBotDuel(lobby) ? watcherJob?.state ?? (watcherOnline ? 'Détecté' : 'À lancer') : 'Companion requis'}</strong></div>
+                <div className={isBotDuel(lobby) && watcherOnline && !['ERROR', 'REVIEW_REQUIRED'].includes(watcherJob?.state ?? '') ? 'companion-state' : 'companion-state muted'}><span>Watcher local</span><strong>{isBotDuel(lobby) ? watcherStateLabel(watcherJob?.state) : 'Companion requis'}</strong></div>
                 <button disabled={busy || !isBotDuel(lobby)} onClick={() => void retryBotWatcher()}>{isBotDuel(lobby) ? 'CRÉER LE LOBBY LEAGUE + BOT' : 'OUVRIR LEAGUE · COMPANION REQUIS'}</button>
                 {isBotDuel(lobby) && watcherJob?.detail && <small className="local-result-note">Watcher : {watcherJob.detail}</small>}
                 <small className="local-result-note">{isBotDuel(lobby)
-                  ? 'Le watcher détecte automatiquement First Blood, 100 CS ou la première tour et transmet le résultat vérifié.'
+                  ? 'Le watcher détecte automatiquement le premier sang, 100 CS ou la première tour et transmet son observation.'
                   : 'Le résultat doit provenir d’une source Watcher autorisée.'}</small>
                 <small className="security-note">Mot de passe chiffré côté serveur · aucun identifiant LCU exposé.</small>
               </aside>

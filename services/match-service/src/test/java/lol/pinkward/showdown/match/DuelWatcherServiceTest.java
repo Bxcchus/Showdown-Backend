@@ -104,6 +104,38 @@ class DuelWatcherServiceTest {
         verify(fixture.matchService, never()).recordVerifiedDuelResult(any(), any(), any());
     }
 
+    @Test
+    void assignmentContainsTheAuthoritativeExpectedPuuids() {
+        Fixture fixture = new Fixture();
+        String rawToken = "watcher-token-with-puuids";
+        DuelWatcherToken token = DuelWatcherToken.issue(
+                fixture.match.id(), fixture.host, sha256(rawToken), "HOST", NOW, NOW.plusSeconds(120));
+        when(fixture.tokens.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(token));
+        when(fixture.challenges.findByMatchId(fixture.match.id())).thenReturn(Optional.of(fixture.challenge));
+        when(fixture.credentials.decrypt("encrypted-password")).thenReturn("lobby-password");
+        when(fixture.identities.resolve(fixture.host)).thenReturn(
+                new DuelIdentityClient.DuelIdentity(fixture.host, "host-puuid-00000001", "Claude Code#JAVA", "EUW"));
+
+        WatcherAssignment assignment = fixture.service.assignment(rawToken, fixture.match.id());
+
+        assertThat(assignment.ownPuuid()).isEqualTo("host-puuid-00000001");
+    }
+
+    @Test
+    void acceptsTheExplicitManualReviewStateWithoutResolvingIdentityAgain() {
+        Fixture fixture = new Fixture();
+        String rawToken = "watcher-token-review-required";
+        DuelWatcherToken token = DuelWatcherToken.issue(
+                fixture.match.id(), fixture.host, sha256(rawToken), "HOST", NOW, NOW.plusSeconds(120));
+        when(fixture.tokens.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(token));
+
+        WatcherStateResponse response = fixture.service.updateState(
+                rawToken, fixture.match.id(), "REVIEW_REQUIRED");
+
+        assertThat(response.state()).isEqualTo("REVIEW_REQUIRED");
+        verify(fixture.identities, never()).resolve(any());
+    }
+
     private static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -124,6 +156,7 @@ class DuelWatcherServiceTest {
         final LobbyCredentialService credentials = mock(LobbyCredentialService.class);
         final MatchApplicationService matchService = mock(MatchApplicationService.class);
         final MatchRealtimeHub realtime = mock(MatchRealtimeHub.class);
+        final DuelIdentityClient identities = mock(DuelIdentityClient.class);
         final GameMatch match;
         final DuelChallenge challenge;
         final DuelWatcherService service;
@@ -138,7 +171,7 @@ class DuelWatcherServiceTest {
             when(matches.findById(match.id())).thenReturn(Optional.of(match));
             service = new DuelWatcherService(
                     tokens, observations, challenges, matches, players, credentials,
-                    matchService, realtime, Duration.ofMinutes(2));
+                    matchService, realtime, identities, Duration.ofMinutes(2));
         }
     }
 }
