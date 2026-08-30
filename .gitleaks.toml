@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated dependency and build output"
+paths = ['''(^|/)(target(?:-[^/]*)?|node_modules|dist|test-results)(/|$)''']

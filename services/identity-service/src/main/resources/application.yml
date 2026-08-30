@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5435/pinkward_identity}
+    username: ${DATABASE_USERNAME:identity_service}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:8}
+      connection-timeout: 3000
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:9000}
+  shutdown: graceful
+  servlet:
+    session:
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:strict}
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9100}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pinkward:
+  issuer: ${JWT_ISSUER:http://identity-service:9000}
+  api-audience: ${JWT_AUDIENCE:pinkward-api}
+  jwt:
+    key-store: ${JWT_KEY_STORE:/var/lib/showdown-identity/jwks.json}
+    rotation-age: ${JWT_ROTATION_AGE:30d}
+    overlap: ${JWT_KEY_OVERLAP:7d}
+    rotation-check: ${JWT_ROTATION_CHECK:1h}
+  local-user:
+    enabled: ${LOCAL_IDENTITY_ENABLED:true}
+    name: ${LOCAL_IDENTITY_USERNAME:local-player}
+    password: ${LOCAL_IDENTITY_PASSWORD}
+    secondary-name: ${LOCAL_IDENTITY_SECONDARY_USERNAME:}
+    secondary-password: ${LOCAL_IDENTITY_SECONDARY_PASSWORD:}
+  login-protection:
+    max-failures: ${LOGIN_MAX_FAILURES:5}
+    failure-window: ${LOGIN_FAILURE_WINDOW:15m}
+    lock-duration: ${LOGIN_LOCK_DURATION:15m}
+  clients:
+    web:
+      redirect-uri: ${WEB_REDIRECT_URI:http://localhost:8088/oauth/callback}
+      development-redirect-uri: ${WEB_DEV_REDIRECT_URI:http://localhost:3000/oauth/callback}
+    matchmaking:
+      secret: ${MATCHMAKING_CLIENT_SECRET}
+    player:
+      secret: ${PLAYER_CLIENT_SECRET}
+    match:
+      secret: ${MATCH_CLIENT_SECRET}
+    result-ingestor:
+      secret: ${RESULT_INGESTOR_CLIENT_SECRET}
+    watcher:
+      secret: ${WATCHER_CLIENT_SECRET:}
+      local-enabled: ${WATCHER_LOCAL_CLIENT_ENABLED:true}
+      installations: ${WATCHER_INSTALLATION_CREDENTIALS:}

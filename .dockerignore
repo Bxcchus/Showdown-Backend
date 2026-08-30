@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vscode
+**/node_modules
+**/dist
+**/target
+**/target-*
+**/.env
+**/.env.*
+!**/.env.example
+*.log
+**/*.pdb
+backups
+watcher-installations

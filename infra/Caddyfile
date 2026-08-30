@@ -1,0 +1,66 @@
+:8088 {
+    encode zstd gzip
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Frame-Options "DENY"
+        Content-Security-Policy "default-src 'self'; connect-src 'self' ws://localhost:8088 ws://127.0.0.1:8088 http://127.0.0.1:43991; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        Cross-Origin-Opener-Policy "same-origin"
+    }
+
+    handle /.openai/* {
+        respond 404
+    }
+
+    # Chrome DevTools probes /.well-known/appspecific/... when it opens. Do not
+    # let that unrelated request enter Spring Security's request cache: it would
+    # replace the pending OAuth authorization and force a second sign-in.
+    handle /.well-known/appspecific/* {
+        respond 404
+    }
+
+    handle /favicon.ico {
+        respond 204
+    }
+
+    @identity path /.well-known/openid-configuration /.well-known/oauth-authorization-server /oauth2/* /connect/* /login* /logout* /error* /userinfo /default-ui.css /identity.css /identity.js
+    handle @identity {
+        reverse_proxy identity-service:9000
+    }
+
+    @gateway path /api/*
+    handle @gateway {
+        reverse_proxy api-gateway:8080
+    }
+
+    @health path /actuator/health/*
+    handle @health {
+        reverse_proxy api-gateway:9101
+    }
+
+    handle {
+        reverse_proxy web-app:8080
+    }
+
+    log {
+        format filter {
+            request>headers>Authorization delete
+            request>headers>Cookie delete
+            request>headers>Sec-Websocket-Protocol delete
+            request>uri query {
+                replace code REDACTED
+                replace state REDACTED
+                replace access_token REDACTED
+                replace refresh_token REDACTED
+                replace id_token REDACTED
+                replace token REDACTED
+                replace client_secret REDACTED
+                replace password REDACTED
+            }
+            wrap json
+        }
+    }
+}

@@ -1,0 +1,570 @@
+name: pinkward-showdown
+
+x-runtime-security: &runtime-security
+  security_opt:
+    - no-new-privileges:true
+  init: true
+
+services:
+  web-app:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: web-app/Dockerfile
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 10
+    restart: unless-stopped
+
+  caddy:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: infra/caddy/Dockerfile
+    ports:
+      - "127.0.0.1:${SHOWDOWN_HTTP_PORT:-8088}:8088"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - edge
+      - gateway
+    depends_on:
+      web-app:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-gateway:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      MANAGEMENT_PORT: 9101
+      RATE_LIMIT_PLAYERS_REPLENISH: ${RATE_LIMIT_PLAYERS_REPLENISH:-10}
+      RATE_LIMIT_PLAYERS_BURST: ${RATE_LIMIT_PLAYERS_BURST:-20}
+      RATE_LIMIT_PARTIES_REPLENISH: ${RATE_LIMIT_PARTIES_REPLENISH:-10}
+      RATE_LIMIT_PARTIES_BURST: ${RATE_LIMIT_PARTIES_BURST:-20}
+      RATE_LIMIT_MATCHMAKING_REPLENISH: ${RATE_LIMIT_MATCHMAKING_REPLENISH:-5}
+      RATE_LIMIT_MATCHMAKING_BURST: ${RATE_LIMIT_MATCHMAKING_BURST:-10}
+      RATE_LIMIT_MATCHES_REPLENISH: ${RATE_LIMIT_MATCHES_REPLENISH:-10}
+      RATE_LIMIT_MATCHES_BURST: ${RATE_LIMIT_MATCHES_BURST:-20}
+      RATE_LIMIT_WATCHERS_REPLENISH: ${RATE_LIMIT_WATCHERS_REPLENISH:-20}
+      RATE_LIMIT_WATCHERS_BURST: ${RATE_LIMIT_WATCHERS_BURST:-40}
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8088}
+      JWT_JWK_SET_URI: http://identity-service:9000/oauth2/jwks
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-pinkward-api}
+      MATCHMAKING_URI: http://matchmaking-service:8081
+      MATCH_URI: http://match-service:8082
+      PLAYER_URI: http://player-service:8083
+      MATCH_WS_URI: ws://match-service:8082
+      PLAYER_WS_URI: ws://player-service:8083
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+    networks:
+      - gateway
+      - backend
+      - observability
+    depends_on:
+      redis:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      matchmaking-service:
+        condition: service_healthy
+      match-service:
+        condition: service_healthy
+      player-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9101/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
+
+  identity-service:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: services/identity-service/Dockerfile
+    environment:
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8088}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-pinkward-api}
+      DATABASE_URL: jdbc:postgresql://identity-postgres:5432/pinkward_identity
+      DATABASE_USERNAME: identity_service
+      DATABASE_PASSWORD: ${IDENTITY_POSTGRES_PASSWORD:?IDENTITY_POSTGRES_PASSWORD is required}
+      MANAGEMENT_PORT: 9100
+      JWT_KEY_STORE: /var/lib/showdown-identity/jwks.json
+      JWT_ROTATION_AGE: ${JWT_ROTATION_AGE:-30d}
+      JWT_KEY_OVERLAP: ${JWT_KEY_OVERLAP:-7d}
+      LOCAL_IDENTITY_USERNAME: ${LOCAL_IDENTITY_USERNAME:?LOCAL_IDENTITY_USERNAME is required}
+      LOCAL_IDENTITY_PASSWORD: ${LOCAL_IDENTITY_PASSWORD:?LOCAL_IDENTITY_PASSWORD is required}
+      LOCAL_IDENTITY_SECONDARY_USERNAME: ${LOCAL_IDENTITY_SECONDARY_USERNAME:-local-player2}
+      LOCAL_IDENTITY_SECONDARY_PASSWORD: ${LOCAL_IDENTITY_SECONDARY_PASSWORD:?LOCAL_IDENTITY_SECONDARY_PASSWORD is required}
+      MATCHMAKING_CLIENT_SECRET: ${MATCHMAKING_CLIENT_SECRET:?MATCHMAKING_CLIENT_SECRET is required}
+      PLAYER_CLIENT_SECRET: ${PLAYER_CLIENT_SECRET:?PLAYER_CLIENT_SECRET is required}
+      MATCH_CLIENT_SECRET: ${MATCH_CLIENT_SECRET:?MATCH_CLIENT_SECRET is required}
+      RESULT_INGESTOR_CLIENT_SECRET: ${RESULT_INGESTOR_CLIENT_SECRET:?RESULT_INGESTOR_CLIENT_SECRET is required}
+      WATCHER_CLIENT_SECRET: ${WATCHER_CLIENT_SECRET:?WATCHER_CLIENT_SECRET is required}
+      WATCHER_LOCAL_CLIENT_ENABLED: ${WATCHER_LOCAL_CLIENT_ENABLED:-true}
+      WATCHER_INSTALLATION_CREDENTIALS: ${WATCHER_INSTALLATION_CREDENTIALS:-}
+      LOCAL_IDENTITY_ENABLED: ${LOCAL_IDENTITY_ENABLED:-true}
+      LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES:-5}
+      LOGIN_FAILURE_WINDOW: ${LOGIN_FAILURE_WINDOW:-15m}
+      LOGIN_LOCK_DURATION: ${LOGIN_LOCK_DURATION:-15m}
+      WEB_REDIRECT_URI: ${WEB_REDIRECT_URI:-http://localhost:8088/oauth/callback}
+      WEB_DEV_REDIRECT_URI: ${WEB_DEV_REDIRECT_URI:-http://localhost:3000/oauth/callback}
+    networks:
+      - gateway
+      - backend
+      - identity-data
+      - observability
+    volumes:
+      - identity-keys:/var/lib/showdown-identity
+    depends_on:
+      identity-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9100/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 10
+    restart: unless-stopped
+
+  player-service:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: services/player-service/Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://player-postgres:5432/pinkward_players
+      DATABASE_USERNAME: player_service
+      DATABASE_PASSWORD: ${PLAYER_POSTGRES_PASSWORD:?PLAYER_POSTGRES_PASSWORD is required}
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8088}
+      JWT_JWK_SET_URI: http://identity-service:9000/oauth2/jwks
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-pinkward-api}
+      PRESENCE_TTL: 45s
+      RIOT_LINK_CHALLENGE_TTL: 90s
+      PARTY_LOCAL_SIMULATION: ${PARTY_LOCAL_SIMULATION:-true}
+      PARTY_INVITATION_TTL: 5m
+      IDENTITY_TOKEN_URI: http://identity-service:9000/oauth2/token
+      MATCHMAKING_INTERNAL_URI: http://matchmaking-service:8081
+      PLAYER_CLIENT_ID: pinkward-player
+      PLAYER_CLIENT_SECRET: ${PLAYER_CLIENT_SECRET:?PLAYER_CLIENT_SECRET is required}
+      MANAGEMENT_PORT: 9102
+      PINKWARD_WEB_ORIGINS: ${WEB_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088,http://localhost:3000,http://127.0.0.1:3000}
+    networks:
+      - backend
+      - player-data
+      - observability
+    depends_on:
+      player-postgres:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      matchmaking-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9102/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
+
+  matchmaking-service:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: services/matchmaking-service/Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pinkward_matchmaking
+      DATABASE_USERNAME: matchmaking_service
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: matchmaking_service
+      RABBITMQ_PASSWORD: ${MATCHMAKING_RABBITMQ_PASSWORD:?MATCHMAKING_RABBITMQ_PASSWORD is required}
+      RABBITMQ_VHOST: Pinkward
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8088}
+      JWT_JWK_SET_URI: http://identity-service:9000/oauth2/jwks
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-pinkward-api}
+      LOCAL_BOTS_ENABLED: ${LOCAL_BOTS_ENABLED:-true}
+      LOCAL_BOTS_FILL_AFTER: ${LOCAL_BOTS_FILL_AFTER:-5s}
+      MATCHMAKING_MAX_MATCHES_PER_TICK: ${MATCHMAKING_MAX_MATCHES_PER_TICK:-100}
+      MATCHMAKING_ROLE_WIDEN_AFTER: ${MATCHMAKING_ROLE_WIDEN_AFTER:-30s}
+      MATCHMAKING_MMR_INITIAL_RANGE: ${MATCHMAKING_MMR_INITIAL_RANGE:-100}
+      MATCHMAKING_MMR_WIDEN_STEP: ${MATCHMAKING_MMR_WIDEN_STEP:-50}
+      MATCHMAKING_MMR_WIDEN_EVERY: ${MATCHMAKING_MMR_WIDEN_EVERY:-15s}
+      MATCHMAKING_MMR_MAX_RANGE: ${MATCHMAKING_MMR_MAX_RANGE:-600}
+      MANAGEMENT_PORT: 9103
+    networks:
+      - backend
+      - data
+      - messaging
+      - observability
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-bootstrap:
+        condition: service_completed_successfully
+      identity-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9103/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
+
+  match-service:
+    <<: *runtime-security
+    build:
+      context: ..
+      dockerfile: services/match-service/Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://match-postgres:5432/pinkward_matches
+      DATABASE_USERNAME: match_service
+      DATABASE_PASSWORD: ${MATCH_POSTGRES_PASSWORD:?MATCH_POSTGRES_PASSWORD is required}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: match_service
+      RABBITMQ_PASSWORD: ${MATCH_RABBITMQ_PASSWORD:?MATCH_RABBITMQ_PASSWORD is required}
+      RABBITMQ_VHOST: Pinkward
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:8088}
+      JWT_JWK_SET_URI: http://identity-service:9000/oauth2/jwks
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-pinkward-api}
+      READY_CHECK_TIMEOUT: 45s
+      LOBBY_CREDENTIAL_KEY: ${LOBBY_CREDENTIAL_KEY:?LOBBY_CREDENTIAL_KEY is required}
+      MATCH_MANUAL_RESULTS_ENABLED: "false"
+      LOCAL_BOT_RESULTS_ENABLED: ${LOCAL_BOT_RESULTS_ENABLED:-false}
+      DUEL_CHALLENGE_TTL: ${DUEL_CHALLENGE_TTL:-10m}
+      DUEL_WATCHER_TOKEN_TTL: ${DUEL_WATCHER_TOKEN_TTL:-2h}
+      IDENTITY_TOKEN_URI: http://identity-service:9000/oauth2/token
+      PLAYER_INTERNAL_URI: http://player-service:8083
+      MATCH_CLIENT_ID: pinkward-match
+      MATCH_CLIENT_SECRET: ${MATCH_CLIENT_SECRET:?MATCH_CLIENT_SECRET is required}
+      MANAGEMENT_PORT: 9104
+      PINKWARD_WEB_ORIGINS: ${WEB_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088,http://localhost:3000,http://127.0.0.1:3000}
+    networks:
+      - backend
+      - match-data
+      - messaging
+      - observability
+    depends_on:
+      match-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-bootstrap:
+        condition: service_completed_successfully
+      identity-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9104/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
+
+  postgres:
+    <<: *runtime-security
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    environment:
+      POSTGRES_DB: pinkward_matchmaking
+      POSTGRES_USER: matchmaking_service
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../backups:/backups
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matchmaking_service -d pinkward_matchmaking"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  match-postgres:
+    <<: *runtime-security
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    environment:
+      POSTGRES_DB: pinkward_matches
+      POSTGRES_USER: match_service
+      POSTGRES_PASSWORD: ${MATCH_POSTGRES_PASSWORD:?MATCH_POSTGRES_PASSWORD is required}
+    volumes:
+      - match-postgres-data:/var/lib/postgresql/data
+      - ../backups:/backups
+    networks:
+      - match-data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U match_service -d pinkward_matches"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  player-postgres:
+    <<: *runtime-security
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    environment:
+      POSTGRES_DB: pinkward_players
+      POSTGRES_USER: player_service
+      POSTGRES_PASSWORD: ${PLAYER_POSTGRES_PASSWORD:?PLAYER_POSTGRES_PASSWORD is required}
+    volumes:
+      - player-postgres-data:/var/lib/postgresql/data
+      - ../backups:/backups
+    networks:
+      - player-data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U player_service -d pinkward_players"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  identity-postgres:
+    <<: *runtime-security
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    environment:
+      POSTGRES_DB: pinkward_identity
+      POSTGRES_USER: identity_service
+      POSTGRES_PASSWORD: ${IDENTITY_POSTGRES_PASSWORD:?IDENTITY_POSTGRES_PASSWORD is required}
+    volumes:
+      - identity-postgres-data:/var/lib/postgresql/data
+      - ../backups:/backups
+    networks:
+      - identity-data
+      - observability
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity_service -d pinkward_identity"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    <<: *runtime-security
+    image: redis:8.2-alpine@sha256:a7859ed111db3c1f5404a973a4747505d559fb5ca32d37e447afc0ef845a2103
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --protected-mode
+      - "yes"
+      - --rename-command
+      - FLUSHALL
+      - ""
+      - --rename-command
+      - FLUSHDB
+      - ""
+    volumes:
+      - redis-data:/data
+    networks:
+      - gateway
+      - observability
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    restart: unless-stopped
+
+  rabbitmq:
+    <<: *runtime-security
+    image: rabbitmq:4.1-management-alpine@sha256:5ae1b436f98ed304168a55a90280dadfb0f1bfe5736d6e2e970e69f7f8fdf5e4
+    environment:
+      RABBITMQ_DEFAULT_VHOST: Pinkward
+      RABBITMQ_DEFAULT_USER: showdown_admin
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_ADMIN_PASSWORD:?RABBITMQ_ADMIN_PASSWORD is required}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    networks:
+      - messaging
+      - observability
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq-bootstrap:
+    <<: *runtime-security
+    image: curlimages/curl:8.15.0@sha256:4026b29997dc7c823b51c164b71e2b51e0fd95cce4601f78202c513d97da2922
+    environment:
+      RABBITMQ_ADMIN_PASSWORD: ${RABBITMQ_ADMIN_PASSWORD:?RABBITMQ_ADMIN_PASSWORD is required}
+      MATCHMAKING_RABBITMQ_PASSWORD: ${MATCHMAKING_RABBITMQ_PASSWORD:?MATCHMAKING_RABBITMQ_PASSWORD is required}
+      MATCH_RABBITMQ_PASSWORD: ${MATCH_RABBITMQ_PASSWORD:?MATCH_RABBITMQ_PASSWORD is required}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        api="http://rabbitmq:15672/api"
+        auth="showdown_admin:$$RABBITMQ_ADMIN_PASSWORD"
+        attempts=0
+        until curl -fsS -u "$$auth" "$$api/overview" >/dev/null; do
+          attempts=$$((attempts + 1))
+          if [ "$$attempts" -ge 30 ]; then
+            echo "RabbitMQ management API did not become ready" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+        until curl -fsS -u "$$auth" "$$api/overview" >/dev/null; do sleep 1; done
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/users/matchmaking_service" -d "{\"password\":\"$$MATCHMAKING_RABBITMQ_PASSWORD\",\"tags\":\"\"}"
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/users/match_service" -d "{\"password\":\"$$MATCH_RABBITMQ_PASSWORD\",\"tags\":\"\"}"
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/permissions/Pinkward/matchmaking_service" -d '{"configure":"^(pinkward\\.events|pinkward\\.events\\.dlx|pinkward\\.matchmaking\\..*)$","write":"^(pinkward\\.events(\\.dlx)?|pinkward\\.matchmaking\\..*)$","read":"^(pinkward\\.events(\\.dlx)?|pinkward\\.matchmaking\\..*)$"}'
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/permissions/Pinkward/match_service" -d '{"configure":"^(pinkward\\.events|pinkward\\.events\\.dlx|pinkward\\.match\\..*)$","write":"^(pinkward\\.events(\\.dlx)?|pinkward\\.match\\..*)$","read":"^(pinkward\\.events(\\.dlx)?|pinkward\\.match\\..*)$"}'
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/topic-permissions/Pinkward/matchmaking_service" -d '{"exchange":"pinkward.events","write":"^pinkward\\.matchmaking\\..*$","read":"^pinkward\\.match\\..*$"}'
+        curl -fsS -u "$$auth" -H 'content-type: application/json' -X PUT "$$api/topic-permissions/Pinkward/match_service" -d '{"exchange":"pinkward.events","write":"^pinkward\\.match\\..*$","read":"^pinkward\\.matchmaking\\..*$"}'
+    networks:
+      - messaging
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
+  redis-exporter:
+    <<: *runtime-security
+    image: oliver006/redis_exporter:v1.77.0@sha256:4c8000eb3525e0f6ed1327499861e272fcce358a9e7a87dd9db74c44607e6d8e
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    networks:
+      - gateway
+      - observability
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  matchmaking-postgres-exporter:
+    <<: *runtime-security
+    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    environment:
+      DATA_SOURCE_NAME: postgresql://matchmaking_service:${POSTGRES_PASSWORD}@postgres:5432/pinkward_matchmaking?sslmode=disable
+    networks: [data, observability]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  match-postgres-exporter:
+    <<: *runtime-security
+    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    environment:
+      DATA_SOURCE_NAME: postgresql://match_service:${MATCH_POSTGRES_PASSWORD}@match-postgres:5432/pinkward_matches?sslmode=disable
+    networks: [match-data, observability]
+    depends_on:
+      match-postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  player-postgres-exporter:
+    <<: *runtime-security
+    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    environment:
+      DATA_SOURCE_NAME: postgresql://player_service:${PLAYER_POSTGRES_PASSWORD}@player-postgres:5432/pinkward_players?sslmode=disable
+    networks: [player-data, observability]
+    depends_on:
+      player-postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  identity-postgres-exporter:
+    <<: *runtime-security
+    image: prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17
+    environment:
+      DATA_SOURCE_NAME: postgresql://identity_service:${IDENTITY_POSTGRES_PASSWORD}@identity-postgres:5432/pinkward_identity?sslmode=disable
+    networks: [identity-data, observability]
+    depends_on:
+      identity-postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  alertmanager:
+    <<: *runtime-security
+    image: prom/alertmanager:v0.28.1@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks: [observability, edge]
+    ports:
+      - "127.0.0.1:9093:9093"
+    restart: unless-stopped
+
+  prometheus:
+    <<: *runtime-security
+    image: prom/prometheus:v3.6.0@sha256:76947e7ef22f8a698fc638f706685909be425dbe09bd7a2cd7aca849f79b5f64
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    networks: [observability, edge]
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - alertmanager
+      - redis-exporter
+      - matchmaking-postgres-exporter
+      - match-postgres-exporter
+      - player-postgres-exporter
+      - identity-postgres-exporter
+    restart: unless-stopped
+
+networks:
+  edge:
+  gateway:
+    internal: true
+  backend:
+    internal: true
+  data:
+    internal: true
+  match-data:
+    internal: true
+  player-data:
+    internal: true
+  messaging:
+    internal: true
+  identity-data:
+    internal: true
+  observability:
+    internal: true
+
+volumes:
+  postgres-data:
+  match-postgres-data:
+  player-postgres-data:
+  rabbitmq-data:
+  redis-data:
+  identity-postgres-data:
+  identity-keys:
+  prometheus-data:

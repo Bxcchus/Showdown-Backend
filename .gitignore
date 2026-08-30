@@ -1,0 +1,16 @@
+.idea/
+.vscode/
+**/target/
+**/target-*/
+**/*.pdb
+**/node_modules/
+**/dist/
+**/.env
+**/.env.*
+!**/.env.example
+*.log
+*.tsbuildinfo
+backups/*
+!backups/.gitkeep
+watcher-installations/
+dist/

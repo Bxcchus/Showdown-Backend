@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: match-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/pinkward_matches}
+    username: ${DATABASE_USERNAME:match_service}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+      connection-timeout: 3000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:matchmaking_service}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:Pinkward}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 500ms
+          multiplier: 2
+          max-interval: 5s
+          max-attempts: 3
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER:http://localhost:9000}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:9000/oauth2/jwks}
+
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9104}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pinkward:
+  duel:
+    challenge-ttl: ${DUEL_CHALLENGE_TTL:10m}
+    watcher-token-ttl: ${DUEL_WATCHER_TOKEN_TTL:2h}
+    identity:
+      token-uri: ${IDENTITY_TOKEN_URI:http://localhost:9000/oauth2/token}
+      player-uri: ${PLAYER_INTERNAL_URI:http://localhost:8083}
+      client-id: ${MATCH_CLIENT_ID:pinkward-match}
+      client-secret: ${MATCH_CLIENT_SECRET}
+  security:
+    audience: ${JWT_AUDIENCE:pinkward-api}
+  ready-check:
+    timeout: ${READY_CHECK_TIMEOUT:45s}
+  lobby:
+    credential-key: ${LOBBY_CREDENTIAL_KEY}
+  match:
+    manual-results-enabled: ${MATCH_MANUAL_RESULTS_ENABLED:false}
+    local-bot-results-enabled: ${LOCAL_BOT_RESULTS_ENABLED:false}

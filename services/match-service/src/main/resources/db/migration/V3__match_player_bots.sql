@@ -1,0 +1,2 @@
+ALTER TABLE match_players
+    ADD COLUMN is_bot BOOLEAN NOT NULL DEFAULT FALSE;
