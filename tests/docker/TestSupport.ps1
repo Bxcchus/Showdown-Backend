@@ -268,6 +268,28 @@ function Wait-ForHttpStatus {
     throw "Timed out waiting for $Description (last HTTP status: $lastStatus)"
 }
 
+function Remove-DisposableQueueEntry {
+    param(
+        [Parameter(Mandatory)][string]$BaseUri,
+        [Parameter(Mandatory)][hashtable]$Headers
+    )
+
+    $response = Invoke-WebRequest "$BaseUri/api/v2/matchmaking/queue" `
+        -Method Delete `
+        -Headers $Headers `
+        -SkipHttpErrorCheck
+
+    if ($response.StatusCode -eq 204) {
+        return
+    }
+    if ($response.StatusCode -eq 409) {
+        Write-Host 'Queue cleanup skipped: the disposable integration-test entry was already reserved.'
+        return
+    }
+
+    throw "Unexpected HTTP $($response.StatusCode) while cleaning the disposable integration-test queue entry"
+}
+
 function Invoke-ComposeSql {
     param(
         [Parameter(Mandatory)][string]$ProjectName,

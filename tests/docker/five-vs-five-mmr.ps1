@@ -191,7 +191,7 @@ try {
     Assert-Equal $after.mmr $projectedQueue.mmr 'a new 5v5 queue entry must use the projected TrueSkill MMR'
 }
 finally {
-    Invoke-WebRequest "$BaseUri/api/v2/matchmaking/queue" -Method Delete -Headers $headers | Out-Null
+    Remove-DisposableQueueEntry -BaseUri $BaseUri -Headers $headers
 }
 
 [void](Wait-ForHttpStatus `
