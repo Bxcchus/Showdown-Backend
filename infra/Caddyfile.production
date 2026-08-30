@@ -1,53 +1,90 @@
 {$SHOWDOWN_API_DOMAIN} {
-    encode zstd gzip
+	encode zstd gzip
 
-    header {
-        -Server
-        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        X-Frame-Options "DENY"
-        Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$SHOWDOWN_API_DOMAIN}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
-        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-        Cross-Origin-Opener-Policy "same-origin"
-    }
+	header {
+		-Server
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "default-src 'self'; connect-src 'self' wss://{$SHOWDOWN_API_DOMAIN}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+	}
 
-    handle /.openai/* {
-        respond 404
-    }
+	handle /.openai/* {
+		respond 404
+	}
 
-    @identity path /.well-known/openid-configuration /.well-known/oauth-authorization-server /oauth2/* /connect/* /login* /logout* /error* /userinfo /default-ui.css /identity.css /identity.js
-    handle @identity {
-        reverse_proxy identity-service:9000
-    }
+	@identity path /.well-known/openid-configuration /.well-known/oauth-authorization-server /oauth2/* /connect/* /login* /logout* /error* /userinfo /default-ui.css /identity.css /identity.js
+	handle @identity {
+		reverse_proxy identity-service:9000
+	}
 
-    @gateway path /api/*
-    handle @gateway {
-        reverse_proxy api-gateway:8080
-    }
+	@gateway path /api/*
+	handle @gateway {
+		reverse_proxy api-gateway:8080
+	}
 
-    handle {
-        respond 404
-    }
+	handle {
+		respond 404
+	}
 
-    log {
-        format filter {
-            request>headers>Authorization delete
-            request>headers>Cookie delete
-            request>headers>Sec-Websocket-Protocol delete
-            request>headers>X-Watcher-Token delete
-            request>headers>X-Showdown-Watcher-Token delete
-            request>uri query {
-                replace code REDACTED
-                replace state REDACTED
-                replace access_token REDACTED
-                replace refresh_token REDACTED
-                replace id_token REDACTED
-                replace token REDACTED
-                replace client_secret REDACTED
-                replace password REDACTED
-            }
-            wrap json
-        }
-    }
+	log {
+		format filter {
+			request>headers>Authorization delete
+			request>headers>Cookie delete
+			request>headers>Sec-Websocket-Protocol delete
+			request>headers>X-Watcher-Token delete
+			request>headers>X-Showdown-Watcher-Token delete
+			request>uri query {
+				replace code REDACTED
+				replace state REDACTED
+				replace access_token REDACTED
+				replace refresh_token REDACTED
+				replace id_token REDACTED
+				replace token REDACTED
+				replace client_secret REDACTED
+				replace password REDACTED
+			}
+			wrap json
+		}
+	}
+}
+
+{$SHOWDOWN_WEB_ORIGIN} {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+	}
+
+	reverse_proxy web-app:3000
+
+	log {
+		format filter {
+			request>headers>Authorization delete
+			request>headers>Cookie delete
+			request>headers>Sec-Websocket-Protocol delete
+			request>headers>X-Watcher-Token delete
+			request>headers>X-Showdown-Watcher-Token delete
+			request>uri query {
+				replace code REDACTED
+				replace state REDACTED
+				replace access_token REDACTED
+				replace refresh_token REDACTED
+				replace id_token REDACTED
+				replace token REDACTED
+				replace client_secret REDACTED
+				replace password REDACTED
+			}
+			wrap json
+		}
+	}
 }
