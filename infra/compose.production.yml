@@ -6,7 +6,10 @@ services:
       - "443:443/udp"
     environment:
       SHOWDOWN_API_DOMAIN: ${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+      SHOWDOWN_WEB_ORIGIN: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
     depends_on: !override
+      web-app:
+        condition: service_healthy
       api-gateway:
         condition: service_healthy
       identity-service:
@@ -20,7 +23,20 @@ services:
         limits: { cpus: "0.50", memory: 256M }
 
   web-app:
-    profiles: ["legacy-integrated-web"]
+    profiles: !reset []
+    build:
+      context: ../../showdown-frontend
+      dockerfile: Dockerfile
+      args:
+        PINKWARD_BACKEND_ORIGIN: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+        NEXT_PUBLIC_PINKWARD_IDENTITY_ORIGIN: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+        NEXT_PUBLIC_PINKWARD_WEBSOCKET_ORIGIN: wss://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+    environment:
+      PINKWARD_BACKEND_ORIGIN: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+      NEXT_PUBLIC_PINKWARD_IDENTITY_ORIGIN: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+      NEXT_PUBLIC_PINKWARD_WEBSOCKET_ORIGIN: wss://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
     deploy:
       resources:
         limits: { cpus: "0.50", memory: 256M }

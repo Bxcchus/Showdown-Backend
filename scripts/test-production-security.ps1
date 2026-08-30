@@ -62,8 +62,17 @@ try {
         $failures.Add('Production Caddy must publish HTTP and HTTPS')
     }
 
-    if ($config.services.PSObject.Properties.Name -contains 'web-app') {
-        $failures.Add('The legacy integrated web-app must be disabled in the default production profile')
+    if ($config.services.PSObject.Properties.Name -notcontains 'web-app') {
+        $failures.Add('Production must include the standalone VPS frontend')
+    }
+    else {
+        $webApp = $config.services.'web-app'
+        if ([string]$webApp.build.context -notmatch 'showdown-frontend$') {
+            $failures.Add('Production web-app must build from the standalone frontend directory')
+        }
+        if ([string]$webApp.environment.PINKWARD_BACKEND_ORIGIN -ne "https://$apiDomain") {
+            $failures.Add('Production web-app does not target the configured API domain')
+        }
     }
 
     foreach ($property in $config.services.PSObject.Properties) {
@@ -129,15 +138,16 @@ try {
     }
 
     $caddyText = Get-Content -LiteralPath $caddy -Raw
-    foreach ($needle in @('{$SHOWDOWN_API_DOMAIN}', 'Strict-Transport-Security', 'Authorization delete', 'Cookie delete',
+    foreach ($needle in @('{$SHOWDOWN_API_DOMAIN}', '{$SHOWDOWN_WEB_ORIGIN}', 'reverse_proxy web-app:3000',
+            'Strict-Transport-Security', 'Authorization delete', 'Cookie delete',
             'Sec-Websocket-Protocol delete', 'X-Watcher-Token delete', 'X-Showdown-Watcher-Token delete',
             'replace access_token REDACTED', 'replace client_secret REDACTED')) {
         if ($caddyText -notmatch [Regex]::Escape($needle)) {
             $failures.Add("Production Caddy is missing: $needle")
         }
     }
-    if ($caddyText -match 'reverse_proxy\s+web-app' -or $caddyText -match 'SHOWDOWN_DOMAIN') {
-        $failures.Add('Production Caddy still contains the retired integrated frontend or legacy domain variable')
+    if ($caddyText -match 'SHOWDOWN_DOMAIN') {
+        $failures.Add('Production Caddy still contains the legacy domain variable')
     }
     $alertmanagerText = Get-Content -LiteralPath $alertmanager -Raw
     if ($alertmanagerText -notmatch 'production-webhook' -or

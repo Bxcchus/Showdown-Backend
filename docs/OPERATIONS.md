@@ -36,10 +36,11 @@ docker compose --env-file .\infra\production.env `
   -f .\infra\compose.yml -f .\infra\compose.production.yml config --quiet
 ~~~
 
-Le profil production par défaut ne crée pas `web-app` et Caddy ne route que
-l'identité et `/api/*`. Les origines OAuth, CORS et WebSocket doivent toutes
-correspondre au frontend autonome configuré. Les comptes locaux sont désactivés
-et `/login` redirige vers le fournisseur OIDC externe.
+La production construit le frontend autonome depuis le dossier frère
+`showdown-frontend` et le sert sur `SHOWDOWN_WEB_ORIGIN`. Caddy route séparément
+le domaine web, l'identité et `/api/*`. Les origines OAuth, CORS et WebSocket
+doivent toutes correspondre au frontend configuré. Les comptes locaux sont
+désactivés et `/login` redirige vers le fournisseur OIDC externe.
 
 ## Secrets locaux
 
