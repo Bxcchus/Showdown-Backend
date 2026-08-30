@@ -45,6 +45,7 @@ try {
     $config = $json | ConvertFrom-Json
     $identity = $config.services.'identity-service'.environment
     $gateway = $config.services.'api-gateway'.environment
+    $web = $config.services.'web-app'.environment
     $player = $config.services.'player-service'.environment
     $match = $config.services.'match-service'.environment
 
@@ -64,6 +65,7 @@ try {
         throw 'Production web OAuth redirect URI does not use the configured origin'
     }
     if ($gateway.WEB_ORIGIN -ne $fakeWebOrigin -or
+            $web.SHOWDOWN_WEB_ORIGIN -ne $fakeWebOrigin -or
             $player.PINKWARD_WEB_ORIGINS -ne $fakeWebOrigin -or
             $match.PINKWARD_WEB_ORIGINS -ne $fakeWebOrigin) {
         throw 'Production CORS origins are not restricted to the fictitious web domain'

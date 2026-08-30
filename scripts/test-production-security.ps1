@@ -140,6 +140,9 @@ try {
     if ([string]$config.services.'api-gateway'.environment.WEB_ORIGIN -ne $webOrigin) {
         $failures.Add('API Gateway does not use the exact standalone web origin')
     }
+    if ([string]$config.services.'web-app'.environment.SHOWDOWN_WEB_ORIGIN -ne $webOrigin) {
+        $failures.Add('Frontend server does not use the exact standalone web origin for same-origin checks')
+    }
     if ([string]$identity.WEB_REDIRECT_URI -ne "$webOrigin/oauth/callback") {
         $failures.Add('Identity service does not redirect OAuth to the standalone frontend')
     }
