@@ -4,7 +4,9 @@ Showdown is the clean web-first V2 application. It is independent from the V1
 repository and starts with one complete distributed slice instead of empty
 placeholder services:
 
-- Web App: React/TypeScript player interface served through Caddy;
+- Web client: maintained in the sibling `Showdown-Frontend` project and hosted
+  independently; the `web-app/` copy in this repository is retained only for
+  local compatibility tests and is disabled by the default production profile;
 - Realtime: two authenticated native WebSocket channels for Party and Match;
 - Identity Service: OAuth 2.1/OIDC, public web client with PKCE and a technical
   Client Credentials client;
@@ -59,6 +61,16 @@ Local entry point: http://127.0.0.1:8088
 
 Use the generated local development account shown in `infra/.env` when the web login page
 opens. The browser stores OAuth tokens only for the current tab session.
+
+Production deliberately separates the public API hostname from the frontend
+origin. Copy `infra/production.env.example` to the ignored
+`infra/production.env`, set `SHOWDOWN_API_DOMAIN` to the backend hostname
+without a scheme and `SHOWDOWN_WEB_ORIGIN` to the exact HTTPS frontend origin,
+configure `OIDC_ISSUER_URI`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` from the
+chosen external identity provider, then render both Compose files. Production
+disables local users and refuses to start its login flow without the OIDC client.
+The production Caddy instance exposes only the identity and API routes; it never
+serves the legacy integrated frontend.
 
 Rotate every local password, encryption key and technical OAuth secret without
 deleting PostgreSQL, Redis or RabbitMQ data:

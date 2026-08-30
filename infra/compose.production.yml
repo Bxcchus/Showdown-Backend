@@ -5,7 +5,12 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      SHOWDOWN_DOMAIN: ${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      SHOWDOWN_API_DOMAIN: ${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+    depends_on: !override
+      api-gateway:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
     volumes:
       - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -15,43 +20,54 @@ services:
         limits: { cpus: "0.50", memory: 256M }
 
   web-app:
+    profiles: ["legacy-integrated-web"]
     deploy:
       resources:
         limits: { cpus: "0.50", memory: 256M }
 
   api-gateway:
     environment:
-      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
-      WEB_ORIGIN: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
+      WEB_ORIGIN: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
     deploy:
       resources:
         limits: { cpus: "1.00", memory: 768M }
 
   identity-service:
     environment:
-      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_IDENTITY_ENABLED: "false"
+      EXTERNAL_IDENTITY_ENABLED: "true"
+      EXTERNAL_IDENTITY_REGISTRATION_ID: production
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_PROVIDER: production
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_CLIENT_ID: ${OIDC_CLIENT_ID:?OIDC_CLIENT_ID is required}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET is required}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_CLIENT_AUTHENTICATION_METHOD: client_secret_basic
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_REDIRECT_URI: "{baseUrl}/login/oauth2/code/{registrationId}"
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_PRODUCTION_SCOPE: openid,profile
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_PRODUCTION_ISSUER_URI: ${OIDC_ISSUER_URI:?OIDC_ISSUER_URI is required}
       WATCHER_LOCAL_CLIENT_ENABLED: "false"
-      WEB_REDIRECT_URI: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}/oauth/callback
+      WEB_REDIRECT_URI: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}/oauth/callback
       WEB_DEV_REDIRECT_URI: ""
       SESSION_COOKIE_SECURE: "true"
-      SESSION_COOKIE_SAME_SITE: strict
+      SESSION_COOKIE_SAME_SITE: lax
     deploy:
       resources:
         limits: { cpus: "0.75", memory: 768M }
 
   player-service:
     environment:
-      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       PARTY_LOCAL_SIMULATION: "false"
-      PINKWARD_WEB_ORIGINS: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      PINKWARD_WEB_ORIGINS: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
     deploy:
       resources:
         limits: { cpus: "0.75", memory: 768M }
 
   matchmaking-service:
     environment:
-      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_BOTS_ENABLED: "false"
     deploy:
       resources:
@@ -59,10 +75,10 @@ services:
 
   match-service:
     environment:
-      JWT_ISSUER: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_BOT_RESULTS_ENABLED: "false"
       MATCH_MANUAL_RESULTS_ENABLED: "false"
-      PINKWARD_WEB_ORIGINS: https://${SHOWDOWN_DOMAIN:?SHOWDOWN_DOMAIN is required}
+      PINKWARD_WEB_ORIGINS: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
     deploy:
       resources:
         limits: { cpus: "1.00", memory: 1G }
@@ -82,6 +98,10 @@ services:
 
   alertmanager:
     ports: !override []
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes: !override
+      - ./observability/alertmanager.production.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ${ALERTMANAGER_WEBHOOK_URL_FILE:?ALERTMANAGER_WEBHOOK_URL_FILE is required}:/run/secrets/alertmanager-webhook-url:ro
   prometheus:
     ports: !override []
 

@@ -87,10 +87,16 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - name: Reject committed secrets
         run: >-
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.0
-          detect --source=/repo --no-git --config=/repo/.gitleaks.toml --redact --exit-code=1
+          docker run --rm -v "$PWD:/repo"
+          -e GIT_CONFIG_COUNT=1
+          -e GIT_CONFIG_KEY_0=safe.directory
+          -e GIT_CONFIG_VALUE_0=/repo
+          zricethezav/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9
+          git /repo --config=/repo/.gitleaks.toml --redact --exit-code=1
       - name: Verify local secret hygiene and loopback bindings
         shell: pwsh
         run: |
@@ -98,25 +104,22 @@ jobs:
           ./scripts/test-production-security.ps1
       - name: Validate Compose
         run: docker compose --env-file infra/.env.example -f infra/compose.yml config --quiet
-      - name: Build service images
+      - name: Build and pull every Compose image
         run: |
-          docker build -t showdown/identity-service:ci -f services/identity-service/Dockerfile .
-          docker build -t showdown/api-gateway:ci -f services/api-gateway/Dockerfile .
-          docker build -t showdown/player-service:ci -f services/player-service/Dockerfile .
-          docker build -t showdown/matchmaking-service:ci -f services/matchmaking-service/Dockerfile .
-          docker build -t showdown/match-service:ci -f services/match-service/Dockerfile .
-          docker build -t showdown/caddy:ci -f infra/caddy/Dockerfile .
-          docker build -t showdown/web-app:ci -f web-app/Dockerfile .
+          docker compose --env-file infra/.env.example -f infra/compose.yml build
+          docker compose --env-file infra/.env.example -f infra/compose.yml pull --ignore-buildable
       - name: Verify non-root users and image contents
         shell: pwsh
-        run: ./scripts/test-image-hygiene.ps1 -ImagePrefix 'showdown/'
-      - name: Scan application images with Trivy
+        run: ./scripts/test-image-hygiene.ps1
+      - name: Scan every Compose image with Trivy
         run: |
-          for image in identity-service api-gateway player-service matchmaking-service match-service caddy web-app; do
+          mapfile -t images < <(docker compose --env-file infra/.env.example -f infra/compose.yml config --images | sort -u)
+          test "${#images[@]}" -gt 0
+          for image in "${images[@]}"; do
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v showdown-trivy-cache:/root/.cache/trivy \
               ghcr.io/aquasecurity/trivy:0.74.0@sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9 \
               image --scanners vuln --exit-code 1 --severity HIGH,CRITICAL \
-              --ignore-unfixed --no-progress --skip-version-check "showdown/$image:ci"
+              --ignore-unfixed --no-progress --skip-version-check "$image"
           done
       - name: Run isolated 1v1 and 5v5 Docker MMR tests
         shell: pwsh

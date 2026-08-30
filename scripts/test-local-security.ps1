@@ -192,6 +192,15 @@ try {
             if ($broadWrite.Count -ne 0) {
                 $failures.Add('infra/.env grants write access to the built-in Users group')
             }
+            $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+            $allowedSids = @($currentSid, 'S-1-5-18', 'S-1-5-32-544')
+            $unexpectedReaders = @($acl.Access | Where-Object {
+                $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+                $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin $allowedSids
+            })
+            if ($unexpectedReaders.Count -ne 0) {
+                $failures.Add('infra/.env grants access outside the current user, SYSTEM and Administrators')
+            }
         }
     }
 }

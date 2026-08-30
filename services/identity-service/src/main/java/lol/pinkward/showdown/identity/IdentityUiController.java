@@ -1,6 +1,7 @@
 package lol.pinkward.showdown.identity;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -8,6 +9,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -30,9 +33,16 @@ class IdentityUiController {
             "match:ready", new PermissionCopy("Answer ready checks", "Accept or decline matches found for your account."));
 
     private final RegisteredClientRepository clients;
+    private final boolean externalIdentityEnabled;
+    private final String externalLoginUrl;
 
-    IdentityUiController(RegisteredClientRepository clients) {
+    IdentityUiController(
+            RegisteredClientRepository clients,
+            @Value("${pinkward.external-identity.enabled:false}") boolean externalIdentityEnabled,
+            @Value("${pinkward.external-identity.registration-id:production}") String registrationId) {
         this.clients = clients;
+        this.externalIdentityEnabled = externalIdentityEnabled;
+        this.externalLoginUrl = AuthorizationServerConfiguration.loginUrl(externalIdentityEnabled, registrationId);
     }
 
     @GetMapping(value = "/login", produces = MediaType.TEXT_HTML_VALUE)
@@ -40,6 +50,9 @@ class IdentityUiController {
             HttpServletRequest request,
             @RequestParam(required = false) String error,
             @RequestParam(required = false) String logout) {
+        if (externalIdentityEnabled) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(externalLoginUrl)).build();
+        }
         CsrfToken csrf = csrf(request);
         String notice = error != null
                 ? "<div class=\"auth-notice auth-notice--error\">"
