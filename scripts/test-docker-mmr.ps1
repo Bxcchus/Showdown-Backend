@@ -58,7 +58,10 @@ $environmentOverrides = @{
     WEB_REDIRECT_URI = "$baseUri/oauth/callback"
     LOCAL_BOTS_ENABLED = 'true'
     LOCAL_BOT_RESULTS_ENABLED = 'true'
-    LOCAL_BOTS_FILL_AFTER = '2s'
+    # Keep the automatic fill fast enough for the test while leaving enough
+    # time for the post-result queue-snapshot assertion to clean up before the
+    # scheduler can reserve that disposable entry.
+    LOCAL_BOTS_FILL_AFTER = '15s'
 }
 $previousEnvironment = @{}
 $results = @()
