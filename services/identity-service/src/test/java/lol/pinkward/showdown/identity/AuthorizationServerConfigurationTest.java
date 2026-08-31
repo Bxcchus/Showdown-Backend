@@ -20,10 +20,11 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 class AuthorizationServerConfigurationTest {
 
     @Test
-    void registersPublicPkceAndDedicatedTechnicalClients() {
+    void registersConfidentialPkceBffAndDedicatedTechnicalClients() {
         AuthorizationServerConfiguration configuration = new AuthorizationServerConfiguration();
         var clients = configuration.registeredClientDefinitions(
                 configuration.passwordEncoder(),
+                "web-bff-secret-with-at-least-32-characters",
                 "http://localhost:8088/oauth/callback",
                 "http://127.0.0.1:3000/oauth/callback",
                 "technical-secret",
@@ -37,7 +38,8 @@ class AuthorizationServerConfigurationTest {
         RegisteredClient web = clients.stream().filter(client -> client.getClientId().equals("pinkward-web")).findFirst().orElseThrow();
         assertThat(web).isNotNull();
         assertThat(web.getClientName()).isEqualTo("GYMS.LOL Web");
-        assertThat(web.getClientAuthenticationMethods()).containsExactly(ClientAuthenticationMethod.NONE);
+        assertThat(web.getClientAuthenticationMethods()).containsExactly(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
+        assertThat(web.getClientSecret()).isNotBlank();
         assertThat(web.getAuthorizationGrantTypes())
                 .contains(AuthorizationGrantType.AUTHORIZATION_CODE, AuthorizationGrantType.REFRESH_TOKEN);
         assertThat(web.getClientSettings().isRequireProofKey()).isTrue();
