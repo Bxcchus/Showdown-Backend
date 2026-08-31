@@ -1,0 +1,40 @@
+define external_interface = "ens3"
+
+table inet gyms_lol_firewall {
+    chain input {
+        type filter hook input priority -10; policy drop;
+
+        ct state invalid counter drop
+        ct state { established, related } counter accept
+        iifname "lo" counter accept
+
+        # Keep path MTU discovery, IPv6 neighbour discovery and diagnostics working.
+        meta l4proto { icmp, ipv6-icmp } counter accept
+
+        # DHCP renewals used by the OVH cloud interface.
+        udp sport 67 udp dport 68 counter accept
+        udp sport 547 udp dport 546 counter accept
+
+        tcp dport { 22, 80, 443 } counter accept
+        udp dport 443 counter accept
+
+        counter drop
+    }
+
+    chain forward_guard {
+        type filter hook forward priority -10; policy accept;
+
+        # Docker's own chains still decide which container receives allowed traffic.
+        iifname $external_interface ct state { established, related } counter accept
+        iifname $external_interface tcp dport { 80, 443 } counter accept
+        iifname $external_interface udp dport 443 counter accept
+
+        # Deny every other new connection from the public interface, including
+        # ports that might accidentally be published by a future Compose change.
+        iifname $external_interface counter drop
+    }
+
+    chain output {
+        type filter hook output priority -10; policy accept;
+    }
+}

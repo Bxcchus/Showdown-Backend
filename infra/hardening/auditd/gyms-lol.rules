@@ -1,0 +1,11 @@
+## GYMS.LOL host and production configuration changes.
+-w /etc/ssh/sshd_config -p wa -k gyms_lol_ssh
+-w /etc/ssh/sshd_config.d/ -p wa -k gyms_lol_ssh
+-w /etc/nftables.conf -p wa -k gyms_lol_firewall
+-w /etc/nftables.d/ -p wa -k gyms_lol_firewall
+-w /etc/docker/daemon.json -p wa -k gyms_lol_docker
+-w /etc/systemd/system/gyms-lol.service -p wa -k gyms_lol_systemd
+-w /opt/pinkward/showdown-backend/infra/production.env -p wa -k gyms_lol_secrets
+-w /opt/pinkward/showdown-backend/infra/compose.yml -p wa -k gyms_lol_deployment
+-w /opt/pinkward/showdown-backend/infra/compose.production.yml -p wa -k gyms_lol_deployment
+-w /opt/pinkward/showdown-backend/infra/Caddyfile.production -p wa -k gyms_lol_deployment
