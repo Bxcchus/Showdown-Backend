@@ -94,7 +94,7 @@ services:
   matchmaking-service:
     environment:
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
-      LOCAL_BOTS_ENABLED: "false"
+      LOCAL_BOTS_ENABLED: ${LOCAL_BOTS_ENABLED:-false}
     deploy:
       resources:
         limits: { cpus: "1.00", memory: 1G }
@@ -102,7 +102,7 @@ services:
   match-service:
     environment:
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
-      LOCAL_BOT_RESULTS_ENABLED: "false"
+      LOCAL_BOT_RESULTS_ENABLED: ${LOCAL_BOT_RESULTS_ENABLED:-false}
       MATCH_MANUAL_RESULTS_ENABLED: "false"
       PINKWARD_WEB_ORIGINS: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
     deploy:

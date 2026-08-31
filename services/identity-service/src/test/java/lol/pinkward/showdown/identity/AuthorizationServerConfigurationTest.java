@@ -42,6 +42,7 @@ class AuthorizationServerConfigurationTest {
                 "result-ingestor-secret",
                 "watcher-secret-with-at-least-32-characters",
                 true,
+                false,
                 "pinkward-watcher-installation-desktop01=installation-secret-with-at-least-32-characters");
 
         RegisteredClient web = clients.stream().filter(client -> client.getClientId().equals("pinkward-web")).findFirst().orElseThrow();
@@ -97,6 +98,31 @@ class AuthorizationServerConfigurationTest {
         assertThat(installedWatcher.getScopes())
                 .doesNotContain("service:profile:link", "service:match:bot-result", "service:match:result");
         assertThat(web.getScopes()).doesNotContain("match:result", "service:match:result");
+    }
+
+    @Test
+    void grantsBotResultScopeToInstallationOnlyWhenBetaBotResultsAreEnabled() {
+        AuthorizationServerConfiguration configuration = new AuthorizationServerConfiguration();
+        var clients = configuration.registeredClientDefinitions(
+                configuration.passwordEncoder(),
+                "web-bff-secret-with-at-least-32-characters",
+                "https://gyms.lol/oauth/callback",
+                "",
+                "technical-secret",
+                "player-secret",
+                "match-secret",
+                "result-ingestor-secret",
+                "",
+                false,
+                true,
+                "pinkward-watcher-installation-desktop01=installation-secret-with-at-least-32-characters");
+
+        RegisteredClient installedWatcher = clients.stream()
+                .filter(client -> client.getClientId().equals("pinkward-watcher-installation-desktop01"))
+                .findFirst().orElseThrow();
+        assertThat(installedWatcher.getScopes()).containsExactlyInAnyOrder(
+                "service:duel:observe", "service:match:bot-result");
+        assertThat(installedWatcher.getScopes()).doesNotContain("service:match:result");
     }
 
     @Test

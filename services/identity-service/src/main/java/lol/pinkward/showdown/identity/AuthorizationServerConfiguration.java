@@ -158,12 +158,13 @@ public class AuthorizationServerConfiguration {
             @Value("${pinkward.clients.result-ingestor.secret}") String resultIngestorSecret,
             @Value("${pinkward.clients.watcher.secret:}") String watcherSecret,
             @Value("${pinkward.clients.watcher.local-enabled:true}") boolean localWatcherEnabled,
+            @Value("${pinkward.clients.watcher.bot-results-enabled:false}") boolean watcherBotResultsEnabled,
             @Value("${pinkward.clients.watcher.installations:}") String watcherInstallations) {
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcOperations);
         List<RegisteredClient> configuredClients = registeredClientDefinitions(
                 passwordEncoder, webSecret, webRedirectUri, webDevelopmentRedirectUri,
                 matchmakingSecret, playerSecret, matchSecret, resultIngestorSecret, watcherSecret,
-                localWatcherEnabled, watcherInstallations);
+                localWatcherEnabled, watcherBotResultsEnabled, watcherInstallations);
         configuredClients.forEach(client -> {
                     RegisteredClient existing = repository.findByClientId(client.getClientId());
                     if (existing == null) {
@@ -214,6 +215,7 @@ public class AuthorizationServerConfiguration {
             String resultIngestorSecret,
             String watcherSecret,
             boolean localWatcherEnabled,
+            boolean watcherBotResultsEnabled,
             String watcherInstallations) {
         TokenSettings publicTokenSettings = TokenSettings.builder()
                 .accessTokenTimeToLive(Duration.ofMinutes(10))
@@ -300,12 +302,16 @@ public class AuthorizationServerConfiguration {
             clients.add(watcherClient(passwordEncoder, "pinkward-watcher", watcherSecret, true));
         }
         parseWatcherInstallations(watcherInstallations).forEach(credential ->
-                clients.add(watcherClient(passwordEncoder, credential.clientId(), credential.secret(), false)));
+                clients.add(watcherClient(
+                        passwordEncoder,
+                        credential.clientId(),
+                        credential.secret(),
+                        watcherBotResultsEnabled)));
         return List.copyOf(clients);
     }
 
     private static RegisteredClient watcherClient(
-            PasswordEncoder passwordEncoder, String clientId, String secret, boolean local) {
+            PasswordEncoder passwordEncoder, String clientId, String secret, boolean botResultsEnabled) {
         RegisteredClient.Builder client = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId(clientId)
                 .clientSecret(passwordEncoder.encode(secret))
@@ -315,7 +321,7 @@ public class AuthorizationServerConfiguration {
                 .tokenSettings(TokenSettings.builder()
                         .accessTokenTimeToLive(Duration.ofMinutes(2))
                         .build());
-        if (local) client.scope("service:match:bot-result");
+        if (botResultsEnabled) client.scope("service:match:bot-result");
         return client.build();
     }
 
