@@ -60,6 +60,10 @@ services:
       - observability
       - oidc-egress
     environment:
+      DATABASE_USERNAME: identity_runtime
+      DATABASE_PASSWORD: ${IDENTITY_DB_RUNTIME_PASSWORD:?IDENTITY_DB_RUNTIME_PASSWORD is required}
+      SPRING_FLYWAY_USER: identity_migrator
+      SPRING_FLYWAY_PASSWORD: ${IDENTITY_DB_MIGRATOR_PASSWORD:?IDENTITY_DB_MIGRATOR_PASSWORD is required}
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_IDENTITY_ENABLED: "false"
       EXTERNAL_IDENTITY_ENABLED: "true"
@@ -84,6 +88,10 @@ services:
 
   player-service:
     environment:
+      DATABASE_USERNAME: player_runtime
+      DATABASE_PASSWORD: ${PLAYER_DB_RUNTIME_PASSWORD:?PLAYER_DB_RUNTIME_PASSWORD is required}
+      SPRING_FLYWAY_USER: player_migrator
+      SPRING_FLYWAY_PASSWORD: ${PLAYER_DB_MIGRATOR_PASSWORD:?PLAYER_DB_MIGRATOR_PASSWORD is required}
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       PARTY_LOCAL_SIMULATION: "false"
       PINKWARD_WEB_ORIGINS: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
@@ -93,6 +101,10 @@ services:
 
   matchmaking-service:
     environment:
+      DATABASE_USERNAME: matchmaking_runtime
+      DATABASE_PASSWORD: ${MATCHMAKING_DB_RUNTIME_PASSWORD:?MATCHMAKING_DB_RUNTIME_PASSWORD is required}
+      SPRING_FLYWAY_USER: matchmaking_migrator
+      SPRING_FLYWAY_PASSWORD: ${MATCHMAKING_DB_MIGRATOR_PASSWORD:?MATCHMAKING_DB_MIGRATOR_PASSWORD is required}
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_BOTS_ENABLED: ${LOCAL_BOTS_ENABLED:-false}
     deploy:
@@ -101,6 +113,10 @@ services:
 
   match-service:
     environment:
+      DATABASE_USERNAME: match_runtime
+      DATABASE_PASSWORD: ${MATCH_DB_RUNTIME_PASSWORD:?MATCH_DB_RUNTIME_PASSWORD is required}
+      SPRING_FLYWAY_USER: match_migrator
+      SPRING_FLYWAY_PASSWORD: ${MATCH_DB_MIGRATOR_PASSWORD:?MATCH_DB_MIGRATOR_PASSWORD is required}
       JWT_ISSUER: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       LOCAL_BOT_RESULTS_ENABLED: ${LOCAL_BOT_RESULTS_ENABLED:-false}
       MATCH_MANUAL_RESULTS_ENABLED: "false"

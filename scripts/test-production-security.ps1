@@ -131,6 +131,26 @@ try {
             $failures.Add("$($serviceProperty.Name) must not use the dedicated OIDC egress network")
         }
     }
+    $databaseRoles = @{
+        'identity-service' = @{ Runtime = 'identity_runtime'; Migrator = 'identity_migrator' }
+        'player-service' = @{ Runtime = 'player_runtime'; Migrator = 'player_migrator' }
+        'matchmaking-service' = @{ Runtime = 'matchmaking_runtime'; Migrator = 'matchmaking_migrator' }
+        'match-service' = @{ Runtime = 'match_runtime'; Migrator = 'match_migrator' }
+    }
+    foreach ($serviceName in $databaseRoles.Keys) {
+        $environment = $config.services.$serviceName.environment
+        $expected = $databaseRoles[$serviceName]
+        if ([string]$environment.DATABASE_USERNAME -ne $expected.Runtime) {
+            $failures.Add("$serviceName must connect with the limited runtime database role")
+        }
+        if ([string]$environment.SPRING_FLYWAY_USER -ne $expected.Migrator) {
+            $failures.Add("$serviceName must run Flyway with the dedicated migrator role")
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$environment.DATABASE_PASSWORD) -or
+            [string]::IsNullOrWhiteSpace([string]$environment.SPRING_FLYWAY_PASSWORD)) {
+            $failures.Add("$serviceName is missing runtime or Flyway database credentials")
+        }
+    }
     $expectedIssuer = "https://$apiDomain"
     foreach ($name in @('api-gateway', 'identity-service', 'player-service', 'matchmaking-service', 'match-service')) {
         if ([string]$config.services.$name.environment.JWT_ISSUER -ne $expectedIssuer) {

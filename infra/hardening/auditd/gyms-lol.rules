@@ -9,3 +9,4 @@
 -w /opt/pinkward/showdown-backend/infra/compose.yml -p wa -k gyms_lol_deployment
 -w /opt/pinkward/showdown-backend/infra/compose.production.yml -p wa -k gyms_lol_deployment
 -w /opt/pinkward/showdown-backend/infra/Caddyfile.production -p wa -k gyms_lol_deployment
+-w /etc/gyms-lol/ -p wa -k gyms_lol_secrets
