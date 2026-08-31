@@ -12,8 +12,8 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 mvn verify
 mvn -Psecurity-scan -DskipTests verify
-Push-Location .\web-app; npm ci; npm audit --audit-level=high; Pop-Location
-Push-Location .\watcher
+Push-Location ..\Showdown-Frontend; npm ci; npm audit --audit-level=high; npm run lint; npm test; npm run test:e2e; Pop-Location
+Push-Location ..\Showdown-Watcher
 cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
@@ -65,8 +65,11 @@ Après création du dépôt distant et premier `push`, appliquer la protection :
 ~~~
 
 Elle interdit les force-push et suppressions, impose un historique linéaire,
-une revue, la résolution des conversations et les cinq jobs `java`, `java-sca`,
-`web`, `watcher` et `docker`. Ajouter le secret GitHub `NVD_API_KEY` pour rendre
+une revue, la résolution des conversations et les trois jobs `java`, `java-sca`
+et `docker`. Configurer la variable `SHOWDOWN_FRONTEND_REPOSITORY` avec le dépôt
+GitHub du frontend autonome et, si nécessaire, `SHOWDOWN_FRONTEND_REF`. Protéger
+également les branches principales des dépôts Frontend et Watcher. Ajouter le
+secret GitHub `NVD_API_KEY` pour rendre
 la mise à jour OWASP rapide et fiable.
 
 ## Domaine, HTTPS et identité (externes)
@@ -82,8 +85,8 @@ la mise à jour OWASP rapide et fiable.
 - créer le fichier secret indiqué par `ALERTMANAGER_WEBHOOK_URL_FILE` avec l'URL
   stockée dans `prod/showdown/alertmanager`, puis déclencher et résoudre une
   alerte de test ;
-- vérifier que le rendu Compose de production n'inclut pas `web-app` ; le profil
-  `legacy-integrated-web` est réservé aux diagnostics locaux ;
+- vérifier que le rendu Compose de production inclut `web-app` construit depuis
+  l'unique dépôt autonome `Showdown-Frontend` ;
 - conserver `RESULT_INGESTOR_CLIENT_SECRET` dans le backend/CI uniquement ;
 - enregistrer l'application chez le fournisseur OIDC choisi, renseigner
   `OIDC_ISSUER_URI`, `OIDC_CLIENT_ID` et `OIDC_CLIENT_SECRET`, puis autoriser le

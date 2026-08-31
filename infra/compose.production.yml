@@ -25,7 +25,7 @@ services:
   web-app:
     profiles: !reset []
     build:
-      context: ../../showdown-frontend
+      context: ${SHOWDOWN_FRONTEND_CONTEXT:-../../showdown-frontend}
       dockerfile: Dockerfile
       args:
         PINKWARD_BACKEND_ORIGIN: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}

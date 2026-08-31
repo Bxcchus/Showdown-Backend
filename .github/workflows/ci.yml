@@ -50,45 +50,25 @@ jobs:
           path: target/dependency-check-report.*
           if-no-files-found: warn
 
-  web:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: web-app/package-lock.json
-      - name: Audit and build the web application
-        working-directory: web-app
-        run: |
-          npm ci
-          npm audit --audit-level=high
-          npm run build
-
-  watcher:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Test the watcher
-        working-directory: watcher
-        run: |
-          rustup show active-toolchain
-          cargo fmt --check
-          cargo clippy --all-targets --locked -- -D warnings
-          cargo test --locked
-          cargo install cargo-audit --locked --version 0.22.2
-          cargo audit
-
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      SHOWDOWN_FRONTEND_CONTEXT: ../showdown-frontend
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+      - name: Require the standalone frontend repository
+        env:
+          FRONTEND_REPOSITORY: ${{ vars.SHOWDOWN_FRONTEND_REPOSITORY }}
+        run: test -n "$FRONTEND_REPOSITORY"
+      - name: Checkout the standalone frontend used by Compose
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ vars.SHOWDOWN_FRONTEND_REPOSITORY }}
+          path: showdown-frontend
+          ref: ${{ vars.SHOWDOWN_FRONTEND_REF || 'main' }}
       - name: Reject committed secrets
         run: >-
           docker run --rm -v "$PWD:/repo"

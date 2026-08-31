@@ -27,11 +27,11 @@ Identity, Gateway, Player, Matchmaking and Match are independent deployables
 because each owns real behavior. Future services are introduced by a vertical
 business slice, never as health-only shells.
 
-The diagram above describes the local compatibility stack. In production, the
-standalone `Showdown-Frontend` is hosted separately and calls the dedicated
-HTTPS API origin. Production Caddy exposes Identity and API Gateway only; the
-legacy `web-app` service is disabled unless the explicit
-`legacy-integrated-web` diagnostic profile is enabled.
+The diagram above describes the local compatibility stack. Local and production
+Compose both build the `web-app` service from the single sibling
+`Showdown-Frontend` repository. Production Caddy exposes the standalone web
+application on the web origin and Identity/API Gateway on the dedicated HTTPS
+API origin. No frontend source copy is embedded in the backend repository.
 
 ## Security boundary
 

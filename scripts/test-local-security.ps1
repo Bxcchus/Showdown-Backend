@@ -94,7 +94,7 @@ try {
         $failures.Add('RabbitMQ topic permissions are missing for service routing keys')
     }
     $caddyText = [IO.File]::ReadAllText($caddyFile)
-    if ($caddyText -notmatch 'reverse_proxy\s+web-app:80' -or
+    if ($caddyText -notmatch 'reverse_proxy\s+web-app:3000' -or
         $caddyText -match 'redir\s+http://localhost:3000') {
         $failures.Add('Caddy must serve the built web application through the secured edge')
     }

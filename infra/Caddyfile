@@ -42,7 +42,7 @@
     }
 
     handle {
-        reverse_proxy web-app:8080
+        reverse_proxy web-app:3000
     }
 
     log {
