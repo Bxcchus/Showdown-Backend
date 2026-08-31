@@ -37,6 +37,7 @@ services:
       NEXT_PUBLIC_PINKWARD_IDENTITY_ORIGIN: https://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       NEXT_PUBLIC_PINKWARD_WEBSOCKET_ORIGIN: wss://${SHOWDOWN_API_DOMAIN:?SHOWDOWN_API_DOMAIN is required}
       SHOWDOWN_WEB_ORIGIN: ${SHOWDOWN_WEB_ORIGIN:?SHOWDOWN_WEB_ORIGIN is required}
+      WEB_CLIENT_SECRET: ${WEB_CLIENT_SECRET:?WEB_CLIENT_SECRET is required}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
     deploy:

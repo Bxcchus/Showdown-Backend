@@ -147,6 +147,7 @@ public class AuthorizationServerConfiguration {
     RegisteredClientRepository registeredClients(
             JdbcOperations jdbcOperations,
             PasswordEncoder passwordEncoder,
+            @Value("${pinkward.clients.web.secret}") String webSecret,
             @Value("${pinkward.clients.web.redirect-uri}") String webRedirectUri,
             @Value("${pinkward.clients.web.development-redirect-uri}") String webDevelopmentRedirectUri,
             @Value("${pinkward.clients.matchmaking.secret}") String matchmakingSecret,
@@ -158,7 +159,7 @@ public class AuthorizationServerConfiguration {
             @Value("${pinkward.clients.watcher.installations:}") String watcherInstallations) {
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcOperations);
         List<RegisteredClient> configuredClients = registeredClientDefinitions(
-                passwordEncoder, webRedirectUri, webDevelopmentRedirectUri,
+                passwordEncoder, webSecret, webRedirectUri, webDevelopmentRedirectUri,
                 matchmakingSecret, playerSecret, matchSecret, resultIngestorSecret, watcherSecret,
                 localWatcherEnabled, watcherInstallations);
         configuredClients.forEach(client -> {
@@ -176,6 +177,15 @@ public class AuthorizationServerConfiguration {
                             .clientSettings(client.getClientSettings())
                             .tokenSettings(client.getTokenSettings());
                     if ("pinkward-web".equals(client.getClientId())) {
+                        reconciled.clientSecret(client.getClientSecret())
+                                .clientAuthenticationMethods(methods -> {
+                                    methods.clear();
+                                    methods.addAll(client.getClientAuthenticationMethods());
+                                })
+                                .authorizationGrantTypes(grantTypes -> {
+                                    grantTypes.clear();
+                                    grantTypes.addAll(client.getAuthorizationGrantTypes());
+                                });
                         reconciled.redirectUris(uris -> {
                             uris.clear();
                             uris.addAll(client.getRedirectUris());
@@ -193,6 +203,7 @@ public class AuthorizationServerConfiguration {
 
     List<RegisteredClient> registeredClientDefinitions(
             PasswordEncoder passwordEncoder,
+            String webSecret,
             String webRedirectUri,
             String webDevelopmentRedirectUri,
             String matchmakingSecret,
@@ -207,10 +218,14 @@ public class AuthorizationServerConfiguration {
                 .refreshTokenTimeToLive(Duration.ofDays(14))
                 .reuseRefreshTokens(false)
                 .build();
+        if (webSecret == null || webSecret.length() < 32) {
+            throw new IllegalArgumentException("Web BFF secret must contain at least 32 characters");
+        }
         RegisteredClient.Builder webBuilder = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("pinkward-web")
                 .clientName("GYMS.LOL Web")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+                .clientSecret(passwordEncoder.encode(webSecret))
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .redirectUri(webRedirectUri);

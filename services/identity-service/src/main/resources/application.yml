@@ -57,6 +57,7 @@ pinkward:
     lock-duration: ${LOGIN_LOCK_DURATION:15m}
   clients:
     web:
+      secret: ${WEB_CLIENT_SECRET}
       redirect-uri: ${WEB_REDIRECT_URI:http://localhost:8088/oauth/callback}
       development-redirect-uri: ${WEB_DEV_REDIRECT_URI:http://localhost:3000/oauth/callback}
     matchmaking:
