@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily GYMS.LOL encrypted PostgreSQL offsite backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+Unit=gyms-lol-backup.service
+
+[Install]
+WantedBy=timers.target

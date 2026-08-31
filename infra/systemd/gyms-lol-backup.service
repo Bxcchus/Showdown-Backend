@@ -1,0 +1,29 @@
+[Unit]
+Description=GYMS.LOL encrypted PostgreSQL offsite backup
+Wants=network-online.target
+After=network-online.target docker.service gyms-lol.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+EnvironmentFile=/etc/gyms-lol/backup.env
+Environment=AWS_EC2_METADATA_DISABLED=true
+ExecStart=/usr/local/sbin/gyms-lol-backup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/opt/pinkward/showdown-backend
+ReadWritePaths=/var/lib/gyms-lol-backup
+
+[Install]
+WantedBy=multi-user.target
