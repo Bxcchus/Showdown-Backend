@@ -4,8 +4,10 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -404,15 +406,25 @@ public class AuthorizationServerConfiguration {
             PersistentJwkSource signingKeys) {
         return context -> {
             context.getJwsHeader().keyId(signingKeys.activeKeyId());
+            RefreshedPlayerClaims refreshedPlayer = null;
             if (AuthorizationGrantType.AUTHORIZATION_CODE.equals(context.getAuthorizationGrantType())) {
                 PlayerIdentity identity = playerIdentity(context.getPrincipal());
                 context.getClaims().subject(identity.playerId().toString());
                 context.getClaims().claim("preferred_username", identity.displayName());
+            } else if (AuthorizationGrantType.REFRESH_TOKEN.equals(context.getAuthorizationGrantType())) {
+                var authorization = context.getAuthorization();
+                var previousAccessToken = authorization == null ? null : authorization.getAccessToken();
+                refreshedPlayer = refreshedPlayerClaims(
+                        previousAccessToken == null ? null : previousAccessToken.getClaims());
+                context.getClaims().subject(refreshedPlayer.subject());
+                context.getClaims().claim("preferred_username", refreshedPlayer.displayName());
             }
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
                 context.getClaims().audience(List.of(audience));
                 context.getClaims().id(UUID.randomUUID().toString());
-                if (context.getPrincipal() != null) {
+                if (refreshedPlayer != null) {
+                    context.getClaims().claim("roles", refreshedPlayer.roles());
+                } else if (context.getPrincipal() != null) {
                     context.getClaims().claim(
                             "roles",
                             context.getPrincipal().getAuthorities().stream()
@@ -423,6 +435,36 @@ public class AuthorizationServerConfiguration {
                 }
             }
         };
+    }
+
+    static RefreshedPlayerClaims refreshedPlayerClaims(Map<String, Object> previousClaims) {
+        if (previousClaims == null) {
+            throw new IllegalArgumentException("Previous access-token claims are required for refresh");
+        }
+        Object rawSubject = previousClaims.get("sub");
+        Object rawDisplayName = previousClaims.get("preferred_username");
+        if (!(rawSubject instanceof String subject)
+                || !(rawDisplayName instanceof String displayName)
+                || displayName.isBlank()
+                || displayName.length() > 64) {
+            throw new IllegalArgumentException("Previous player claims are invalid");
+        }
+        try {
+            UUID.fromString(subject);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Previous player subject is not a UUID", exception);
+        }
+        Object rawRoles = previousClaims.get("roles");
+        List<String> roles;
+        if (rawRoles == null) {
+            roles = List.of();
+        } else if (rawRoles instanceof Collection<?> collection
+                && collection.stream().allMatch(String.class::isInstance)) {
+            roles = collection.stream().map(String.class::cast).toList();
+        } else {
+            throw new IllegalArgumentException("Previous player roles are invalid");
+        }
+        return new RefreshedPlayerClaims(subject, displayName, roles);
     }
 
     static String loginUrl(boolean externalIdentityEnabled, String registrationId) {
@@ -461,5 +503,7 @@ public class AuthorizationServerConfiguration {
     }
 
     record PlayerIdentity(UUID playerId, String displayName) {}
+
+    record RefreshedPlayerClaims(String subject, String displayName, List<String> roles) {}
 
 }

@@ -2,8 +2,11 @@ package lol.pinkward.showdown.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -13,8 +16,14 @@ import org.springframework.security.core.authority.FactorGrantedAuthority;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 
 class AuthorizationServerConfigurationTest {
@@ -169,6 +178,63 @@ class AuthorizationServerConfigurationTest {
 
         assertThat(identity.displayName()).isEqualTo("local-player");
         assertThat(identity.playerId().toString()).isEqualTo("fab9a498-4a3c-3932-9f52-7cc417980275");
+    }
+
+    @Test
+    void refreshKeepsTheStablePlayerSubjectNameAndRoles() {
+        String playerId = "11111111-1111-4111-8111-111111111111";
+
+        var claims = AuthorizationServerConfiguration.refreshedPlayerClaims(Map.of(
+                "sub", playerId,
+                "preferred_username", "Player-test",
+                "roles", List.of("USER")));
+
+        assertThat(claims.subject()).isEqualTo(playerId);
+        assertThat(claims.displayName()).isEqualTo("Player-test");
+        assertThat(claims.roles()).containsExactly("USER");
+    }
+
+    @Test
+    void refreshRejectsAProviderSubjectInsteadOfAPlayerUuid() {
+        assertThatThrownBy(() -> AuthorizationServerConfiguration.refreshedPlayerClaims(Map.of(
+                "sub", "auth0|provider-user",
+                "preferred_username", "Player-test")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("UUID");
+    }
+
+    @Test
+    void refreshedJwtActuallyKeepsPlayerClaims() {
+        var signingKeys = mock(PersistentJwkSource.class);
+        when(signingKeys.activeKeyId()).thenReturn("active-key");
+        var context = mock(JwtEncodingContext.class);
+        var authorization = mock(OAuth2Authorization.class);
+        @SuppressWarnings("unchecked")
+        OAuth2Authorization.Token<org.springframework.security.oauth2.core.OAuth2AccessToken> previousToken =
+                mock(OAuth2Authorization.Token.class);
+        var headers = JwsHeader.with(SignatureAlgorithm.RS256);
+        var claims = JwtClaimsSet.builder();
+        String playerId = "11111111-1111-4111-8111-111111111111";
+        when(context.getJwsHeader()).thenReturn(headers);
+        when(context.getClaims()).thenReturn(claims);
+        when(context.getAuthorizationGrantType()).thenReturn(AuthorizationGrantType.REFRESH_TOKEN);
+        when(context.getTokenType()).thenReturn(OAuth2TokenType.ACCESS_TOKEN);
+        when(context.getAuthorization()).thenReturn(authorization);
+        when(authorization.getAccessToken()).thenReturn(previousToken);
+        when(previousToken.getClaims()).thenReturn(Map.of(
+                "sub", playerId,
+                "preferred_username", "Player-test",
+                "roles", List.of("USER")));
+
+        new AuthorizationServerConfiguration()
+                .accessTokenClaims("gyms-api", signingKeys)
+                .customize(context);
+
+        var refreshed = claims.build().getClaims();
+        assertThat(refreshed.get("sub")).isEqualTo(playerId);
+        assertThat(refreshed.get("preferred_username")).isEqualTo("Player-test");
+        assertThat(refreshed.get("roles")).isEqualTo(List.of("USER"));
+        assertThat(refreshed.get("aud")).isEqualTo(List.of("gyms-api"));
     }
 
     private static OAuth2AuthenticationToken authentication(String issuer, String subject) {
