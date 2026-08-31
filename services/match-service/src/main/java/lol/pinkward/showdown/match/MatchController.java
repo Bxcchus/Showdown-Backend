@@ -21,10 +21,13 @@ class MatchController {
 
     private final MatchApplicationService matches;
     private final BotMatchResultService botResults;
+    private final TeamMatchWatcherService teamWatchers;
 
-    MatchController(MatchApplicationService matches, BotMatchResultService botResults) {
+    MatchController(MatchApplicationService matches, BotMatchResultService botResults,
+            TeamMatchWatcherService teamWatchers) {
         this.matches = matches;
         this.botResults = botResults;
+        this.teamWatchers = teamWatchers;
     }
 
     @GetMapping("/current")
@@ -112,6 +115,16 @@ class MatchController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ReadyAnswer answer) {
         return matches.answer(matchId, playerId(jwt), answer.accepted());
+    }
+
+    @PostMapping("/{matchId}/watcher-token")
+    @PreAuthorize("hasAuthority('SCOPE_match:read')")
+    ResponseEntity<WatcherTokenResponse> watcherToken(
+            @PathVariable UUID matchId,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(teamWatchers.issue(matchId, playerId(jwt)));
     }
 
     @PostMapping("/{matchId}/result")

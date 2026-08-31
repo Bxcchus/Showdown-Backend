@@ -297,6 +297,11 @@ class MatchApplicationService {
     }
 
     @Transactional
+    MatchSnapshot recordVerifiedTeamResult(UUID matchId, UUID reporterId, TeamSide winner) {
+        return recordResultInternal(matchId, reporterId, winner);
+    }
+
+    @Transactional
     MatchSnapshot recordTrustedResult(UUID matchId, TeamSide winner) {
         return recordResultInternal(matchId, null, winner);
     }

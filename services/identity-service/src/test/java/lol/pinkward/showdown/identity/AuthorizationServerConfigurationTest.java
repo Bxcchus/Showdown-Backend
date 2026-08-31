@@ -89,12 +89,13 @@ class AuthorizationServerConfigurationTest {
         assertThat(watcher.getAuthorizationGrantTypes())
                 .containsExactly(AuthorizationGrantType.CLIENT_CREDENTIALS);
         assertThat(watcher.getScopes()).containsExactlyInAnyOrder(
-                "service:duel:observe", "service:match:bot-result");
+                "service:duel:observe", "service:match:observe", "service:match:bot-result");
         assertThat(watcher.getScopes()).doesNotContain("service:match:result");
         RegisteredClient installedWatcher = clients.stream()
                 .filter(client -> client.getClientId().equals("pinkward-watcher-installation-desktop01"))
                 .findFirst().orElseThrow();
-        assertThat(installedWatcher.getScopes()).containsExactly("service:duel:observe");
+        assertThat(installedWatcher.getScopes()).containsExactlyInAnyOrder(
+                "service:duel:observe", "service:match:observe");
         assertThat(installedWatcher.getScopes())
                 .doesNotContain("service:profile:link", "service:match:bot-result", "service:match:result");
         assertThat(web.getScopes()).doesNotContain("match:result", "service:match:result");
@@ -121,7 +122,7 @@ class AuthorizationServerConfigurationTest {
                 .filter(client -> client.getClientId().equals("pinkward-watcher-installation-desktop01"))
                 .findFirst().orElseThrow();
         assertThat(installedWatcher.getScopes()).containsExactlyInAnyOrder(
-                "service:duel:observe", "service:match:bot-result");
+                "service:duel:observe", "service:match:observe", "service:match:bot-result");
         assertThat(installedWatcher.getScopes()).doesNotContain("service:match:result");
     }
 
