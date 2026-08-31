@@ -1,0 +1,19 @@
+[Unit]
+Description=GYMS.LOL production stack
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/pinkward/showdown-backend/infra
+ExecStartPre=/usr/bin/docker compose --env-file production.env -f compose.yml -f compose.production.yml config --quiet
+ExecStart=/usr/bin/docker compose --env-file production.env -f compose.yml -f compose.production.yml up -d --wait
+ExecReload=/usr/bin/docker compose --env-file production.env -f compose.yml -f compose.production.yml up -d --wait
+ExecStop=/usr/bin/docker compose --env-file production.env -f compose.yml -f compose.production.yml down
+TimeoutStartSec=900
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

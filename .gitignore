@@ -9,6 +9,7 @@
 **/.env.*
 !**/.env.example
 infra/production.env
+infra/production.generated.env
 *.log
 *.tsbuildinfo
 backups/*

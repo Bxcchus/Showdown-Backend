@@ -15,7 +15,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 & gh auth status | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI is not authenticated.' }
 
-$requiredChecks = @('java', 'java-sca', 'web', 'watcher', 'docker')
+$requiredChecks = @('java', 'java-sca', 'docker')
 $payload = @{
     required_status_checks = @{
         strict = $true
@@ -49,4 +49,4 @@ finally {
     Remove-Item -LiteralPath $temporaryPayload -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Branch $Branch is protected; all five backend CI jobs are mandatory."
+Write-Host "Branch $Branch is protected; all three backend CI jobs are mandatory."

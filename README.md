@@ -4,9 +4,9 @@ Showdown is the clean web-first V2 application. It is independent from the V1
 repository and starts with one complete distributed slice instead of empty
 placeholder services:
 
-- Web client: maintained in the sibling `Showdown-Frontend` project and hosted
-  independently; the `web-app/` copy in this repository is retained only for
-  local compatibility tests and is disabled by the default production profile;
+- Web client: maintained and tested exclusively in the sibling
+  `Showdown-Frontend` project; both local and production Compose builds use that
+  single source tree;
 - Realtime: two authenticated native WebSocket channels for Party and Match;
 - Identity Service: OAuth 2.1/OIDC, public web client with PKCE and a technical
   Client Credentials client;
@@ -30,9 +30,10 @@ placeholder services:
 - Contracts: versioned event envelope shared without sharing persistence
   entities.
 
-The lightweight Rust Watcher implements the current Riot/LCU bridge for ranked
-1v1 verification. Community chat remains deferred until a concrete business use
-case exists, which avoids introducing a fictitious service.
+The lightweight Rust Watcher is maintained exclusively in the sibling
+`Showdown-Watcher` project. It implements the Riot/LCU bridge for ranked 1v1
+verification and the 5v5 participant, launch and result workflow. Community
+chat remains deferred until a concrete business use case exists.
 
 ## Requirements
 
