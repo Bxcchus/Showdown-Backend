@@ -14,7 +14,8 @@ Write-Host '[1v1] OAuth, matchmaking, ready-check, Watcher result and Glicko-2 p
 
 $username = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'LOCAL_IDENTITY_USERNAME'
 $password = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'LOCAL_IDENTITY_PASSWORD'
-$accessToken = Get-PlayerAccessToken -BaseUri $BaseUri -Username $username -Password $password
+$accessToken = Get-PlayerAccessToken -BaseUri $BaseUri -EnvironmentFile $EnvironmentFile `
+    -Username $username -Password $password
 $headers = New-BearerHeaders -AccessToken $accessToken
 $profile = Invoke-RestMethod "$BaseUri/api/v2/players/me" -Headers $headers
 $before = Invoke-RestMethod "$BaseUri/api/v2/matches/duel/statistics?region=EUW" -Headers $headers

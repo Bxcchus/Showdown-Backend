@@ -14,7 +14,8 @@ Write-Host '[5v5] OAuth, matchmaking, ready-check, trusted result and TrueSkill 
 
 $username = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'LOCAL_IDENTITY_USERNAME'
 $password = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'LOCAL_IDENTITY_PASSWORD'
-$accessToken = Get-PlayerAccessToken -BaseUri $BaseUri -Username $username -Password $password
+$accessToken = Get-PlayerAccessToken -BaseUri $BaseUri -EnvironmentFile $EnvironmentFile `
+    -Username $username -Password $password
 $headers = New-BearerHeaders -AccessToken $accessToken
 $profile = Invoke-RestMethod "$BaseUri/api/v2/players/me" -Headers $headers
 $before = Invoke-RestMethod "$BaseUri/api/v2/matches/statistics?region=EUW" -Headers $headers
