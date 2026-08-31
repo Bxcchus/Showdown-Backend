@@ -71,4 +71,5 @@ pinkward:
     watcher:
       secret: ${WATCHER_CLIENT_SECRET:}
       local-enabled: ${WATCHER_LOCAL_CLIENT_ENABLED:true}
+      bot-results-enabled: ${WATCHER_BOT_RESULTS_ENABLED:false}
       installations: ${WATCHER_INSTALLATION_CREDENTIALS:}
