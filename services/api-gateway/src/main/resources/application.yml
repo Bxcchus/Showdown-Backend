@@ -112,7 +112,15 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,redis,internalServices
 
 pinkward:
   security:
     audience: ${JWT_AUDIENCE:pinkward-api}
+  health:
+    identity-uri: ${IDENTITY_HEALTH_URI:http://localhost:9100/actuator/health/readiness}
+    matchmaking-uri: ${MATCHMAKING_HEALTH_URI:http://localhost:9103/actuator/health/readiness}
+    match-uri: ${MATCH_HEALTH_URI:http://localhost:9104/actuator/health/readiness}
+    player-uri: ${PLAYER_HEALTH_URI:http://localhost:9102/actuator/health/readiness}

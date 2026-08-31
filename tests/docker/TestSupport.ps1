@@ -65,15 +65,27 @@ function Read-HiddenInput {
 function Get-PlayerAccessToken {
     param(
         [Parameter(Mandatory)][string]$BaseUri,
+        [Parameter(Mandatory)][string]$EnvironmentFile,
         [Parameter(Mandatory)][string]$Username,
         [Parameter(Mandatory)][string]$Password
     )
 
     $random = New-Object byte[] 32
-    [Security.Cryptography.RandomNumberGenerator]::Fill($random)
+    $randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $randomNumberGenerator.GetBytes($random)
+    }
+    finally {
+        $randomNumberGenerator.Dispose()
+    }
     $verifier = [Convert]::ToBase64String($random).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-    $digest = [Security.Cryptography.SHA256]::HashData(
-        [Text.Encoding]::ASCII.GetBytes($verifier))
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash([Text.Encoding]::ASCII.GetBytes($verifier))
+    }
+    finally {
+        $sha256.Dispose()
+    }
     $challenge = [Convert]::ToBase64String($digest).TrimEnd('=').Replace('+', '-').Replace('/', '_')
     $redirectUri = "$BaseUri/oauth/callback"
     $requestState = [Guid]::NewGuid().ToString('N')
@@ -158,12 +170,15 @@ function Get-PlayerAccessToken {
         throw "OAuth authorization code was not returned for $Username"
     }
 
+    $webClientSecret = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'WEB_CLIENT_SECRET'
+    $webClientCredentials = [Convert]::ToBase64String(
+        [Text.Encoding]::UTF8.GetBytes("pinkward-web:$webClientSecret"))
     $token = Invoke-RestMethod "$BaseUri/oauth2/token" `
         -Method Post `
+        -Headers @{ Authorization = "Basic $webClientCredentials" } `
         -ContentType 'application/x-www-form-urlencoded' `
         -Body @{
             grant_type = 'authorization_code'
-            client_id = 'pinkward-web'
             redirect_uri = $redirectUri
             code = $authorizationCode
             code_verifier = $verifier

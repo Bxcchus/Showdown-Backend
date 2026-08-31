@@ -74,6 +74,10 @@ services:
       MATCHMAKING_URI: http://matchmaking-service:8081
       MATCH_URI: http://match-service:8082
       PLAYER_URI: http://player-service:8083
+      IDENTITY_HEALTH_URI: http://identity-service:9100/actuator/health/readiness
+      MATCHMAKING_HEALTH_URI: http://matchmaking-service:9103/actuator/health/readiness
+      MATCH_HEALTH_URI: http://match-service:9104/actuator/health/readiness
+      PLAYER_HEALTH_URI: http://player-service:9102/actuator/health/readiness
       MATCH_WS_URI: ws://match-service:8082
       PLAYER_WS_URI: ws://player-service:8083
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
@@ -440,6 +444,7 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
       timeout: 5s
+      start_period: 30s
       retries: 20
     restart: unless-stopped
 

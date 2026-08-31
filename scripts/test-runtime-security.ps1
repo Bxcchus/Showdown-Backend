@@ -11,7 +11,8 @@ Set-StrictMode -Version Latest
 if (-not (Test-Path -LiteralPath $EnvironmentFile)) { throw "Missing $EnvironmentFile" }
 $username = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'LOCAL_IDENTITY_USERNAME'
 $password = Read-DotEnvValue -EnvironmentFile $EnvironmentFile -Name 'LOCAL_IDENTITY_PASSWORD'
-$playerToken = Get-PlayerAccessToken -BaseUri $BaseUri -Username $username -Password $password
+$playerToken = Get-PlayerAccessToken -BaseUri $BaseUri -EnvironmentFile $EnvironmentFile `
+    -Username $username -Password $password
 $watcherToken = Get-WatcherAccessToken -BaseUri $BaseUri -EnvironmentFile $EnvironmentFile -Scope 'service:duel:observe'
 Write-Host 'OAuth tokens acquired.'
 
