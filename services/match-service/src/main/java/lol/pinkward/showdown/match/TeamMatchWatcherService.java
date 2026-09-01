@@ -143,6 +143,7 @@ class TeamMatchWatcherService {
         if (!verifiedPuuids.equals(expectedPuuids)) {
             throw conflict("Verified League roster does not match the assigned human roster");
         }
+        recordChampions(roster, expectedPuuids, request.champions());
         TeamMatchWatcherResult prior = results.findByMatchIdAndReporterId(matchId, reporter.playerId()).orElse(null);
         if (prior != null && (prior.winningTeam() != request.winningTeam()
                 || !prior.gameId().equals(gameId))) {
@@ -212,6 +213,25 @@ class TeamMatchWatcherService {
             throw conflict("A rated 5v5 match requires two complete teams");
         }
         return roster;
+    }
+
+    private void recordChampions(
+            List<MatchPlayer> roster,
+            Set<String> expectedPuuids,
+            List<TeamWatcherChampion> champions) {
+        if (champions == null || champions.isEmpty()) return;
+        Map<String, String> byPuuid = new HashMap<>();
+        for (TeamWatcherChampion champion : champions) {
+            String prior = byPuuid.put(champion.puuid().trim(), champion.championName().trim());
+            if (prior != null) throw conflict("Duplicate champion entry for a League player");
+        }
+        if (!byPuuid.keySet().equals(expectedPuuids)) {
+            throw conflict("Champion roster does not match the verified League roster");
+        }
+        roster.stream().filter(player -> !player.bot()).forEach(player -> {
+            String puuid = identities.resolve(player.playerId()).puuid().trim();
+            player.recordChampion(byPuuid.get(puuid));
+        });
     }
 
     private void publish(List<MatchPlayer> roster, String type) {

@@ -30,9 +30,10 @@ class BotMatchResultServiceTest {
 
         MatchSnapshot result = service.record(
                 fixture.match().id(),
-                new BotMatchResultRequest(true, DuelObjective.FIRST_BLOOD, Instant.now()));
+                new BotMatchResultRequest(true, DuelObjective.FIRST_BLOOD, "Draven", Instant.now()));
 
         assertThat(result).isSameAs(expected);
+        assertThat(fixture.human().championName()).isEqualTo("Draven");
         verify(matchService).recordTrustedResult(fixture.match().id(), TeamSide.RED);
     }
 
@@ -45,7 +46,7 @@ class BotMatchResultServiceTest {
 
         service.record(
                 fixture.match().id(),
-                new BotMatchResultRequest(false, DuelObjective.FIRST_TO_100_CS, Instant.now()));
+                new BotMatchResultRequest(false, DuelObjective.FIRST_TO_100_CS, "Lux", Instant.now()));
 
         verify(matchService).recordTrustedResult(fixture.match().id(), TeamSide.RED);
     }
@@ -82,7 +83,7 @@ class BotMatchResultServiceTest {
 
         assertThatThrownBy(() -> service(true).record(
                 fixture.match().id(),
-                new BotMatchResultRequest(true, DuelObjective.FIRST_TOWER, Instant.now())))
+                new BotMatchResultRequest(true, DuelObjective.FIRST_TOWER, "Lux", Instant.now())))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("one human and one bot");
     }
@@ -94,7 +95,7 @@ class BotMatchResultServiceTest {
         assertThatThrownBy(() -> service(true).record(
                 fixture.match().id(),
                 new BotMatchResultRequest(
-                        true, DuelObjective.FIRST_BLOOD, Instant.now().minusSeconds(180))))
+                        true, DuelObjective.FIRST_BLOOD, "Lux", Instant.now().minusSeconds(180))))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("time window");
     }

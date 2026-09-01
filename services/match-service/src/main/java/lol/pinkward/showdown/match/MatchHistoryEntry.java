@@ -10,6 +10,7 @@ record MatchHistoryEntry(
         String outcome,
         String team,
         String role,
+        String championName,
         Instant playedAt,
         int previousMmr,
         int mmrDelta,

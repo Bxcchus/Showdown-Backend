@@ -101,6 +101,9 @@ class DuelWatcherService {
                 || request.observedAt().isAfter(now.plus(MAX_CLOCK_SKEW))) {
             throw bad("Watcher observation is outside the accepted time window");
         }
+        MatchPlayer reporter = players.findByMatchIdAndPlayerId(matchId, token.playerId())
+                .orElseThrow(() -> forbidden("Watcher player is not in this duel"));
+        reporter.recordChampion(request.championName());
         DuelChallenge challenge = challenges.findByMatchId(matchId)
                 .orElseThrow(() -> notFound("Duel invitation not found"));
         UUID winnerId = playerForRiotId(challenge, request.winnerRiotId());
