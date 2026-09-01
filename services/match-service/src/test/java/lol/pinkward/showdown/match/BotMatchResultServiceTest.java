@@ -51,6 +51,19 @@ class BotMatchResultServiceTest {
     }
 
     @Test
+    void cancelsAnActiveBotDuelAfterChampionSelectIsAbandoned() {
+        Fixture fixture = botDuel(TeamSide.BLUE, TeamSide.RED);
+        BotMatchResultService service = service(true);
+        MatchSnapshot expected = mock(MatchSnapshot.class);
+        when(matchService.cancelVerifiedBotMatch(fixture.match().id())).thenReturn(expected);
+
+        MatchSnapshot result = service.cancel(fixture.match().id());
+
+        assertThat(result).isSameAs(expected);
+        verify(matchService).cancelVerifiedBotMatch(fixture.match().id());
+    }
+
+    @Test
     void refusesLocalBotIngestionUnlessExplicitlyEnabled() {
         Fixture fixture = botDuel(TeamSide.BLUE, TeamSide.RED);
 

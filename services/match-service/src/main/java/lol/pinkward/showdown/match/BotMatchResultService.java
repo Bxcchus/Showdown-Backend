@@ -57,6 +57,12 @@ class BotMatchResultService {
         return matchService.recordTrustedResult(matchId, winner);
     }
 
+    @Transactional
+    MatchSnapshot cancel(UUID matchId) {
+        activeBotDuel(matchId);
+        return matchService.cancelVerifiedBotMatch(matchId);
+    }
+
     private BotRoster activeBotDuel(UUID matchId) {
         if (!enabled) {
             throw new ResponseStatusException(

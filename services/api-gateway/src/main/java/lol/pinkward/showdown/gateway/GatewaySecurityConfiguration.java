@@ -73,7 +73,8 @@ public class GatewaySecurityConfiguration {
                         .hasAuthority("SCOPE_match:ready")
                         .pathMatchers("/api/v2/matches/*/result")
                         .hasAuthority("SCOPE_service:match:result")
-                        .pathMatchers("/api/v2/matches/*/bot-assignment", "/api/v2/matches/*/bot-result")
+                        .pathMatchers("/api/v2/matches/*/bot-assignment", "/api/v2/matches/*/bot-result",
+                                "/api/v2/matches/*/bot-cancel")
                         .hasAuthority("SCOPE_service:match:bot-result")
                         .pathMatchers(HttpMethod.POST, "/api/v2/matches/*/watcher-token")
                         .hasAuthority("SCOPE_match:read")
