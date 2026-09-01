@@ -80,6 +80,39 @@ class TeamMatchWatcherServiceTest {
         verify(fixture.matchService, never()).recordVerifiedTeamResult(any(), any(), any());
     }
 
+    @Test
+    void cancelsAConfirmedLobbyWhenChampSelectIsAborted() {
+        Fixture fixture = new Fixture();
+        UUID reporter = fixture.bluePlayers.getFirst();
+        String rawToken = "team-watcher-cancel";
+        DuelWatcherToken token = fixture.token(reporter, rawToken, "HOST");
+        token.touch("CHAMP_SELECT_STARTED", NOW);
+        when(fixture.tokens.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(token));
+        when(fixture.tokens.findAllByMatchId(fixture.match.id())).thenReturn(List.of(token));
+
+        fixture.service.cancel(rawToken, fixture.match.id());
+
+        verify(fixture.matchService).cancelVerifiedTeamMatch(fixture.match.id(), reporter);
+        assertThat(token.active(NOW.plusSeconds(1))).isFalse();
+    }
+
+    @Test
+    void refusesToCancelAfterTheGameStarted() {
+        Fixture fixture = new Fixture();
+        UUID reporter = fixture.bluePlayers.getFirst();
+        String rawToken = "team-watcher-in-game-cancel";
+        DuelWatcherToken token = fixture.token(reporter, rawToken, "HOST");
+        token.touch("IN_GAME", NOW);
+        when(fixture.tokens.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(token));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> fixture.service.cancel(rawToken, fixture.match.id()))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("409 CONFLICT");
+
+        verify(fixture.matchService, never()).cancelVerifiedTeamMatch(any(), any());
+    }
+
     private static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

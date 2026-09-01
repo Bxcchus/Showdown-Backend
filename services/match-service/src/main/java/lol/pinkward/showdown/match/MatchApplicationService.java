@@ -302,6 +302,29 @@ class MatchApplicationService {
     }
 
     @Transactional
+    MatchSnapshot cancelVerifiedTeamMatch(UUID matchId, UUID reporterId) {
+        GameMatch match = matches.findByIdForUpdate(matchId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Match not found"));
+        if (!"FIVE_V_FIVE".equals(match.mode()) || match.status() != MatchStatus.CONFIRMED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "5v5 lobby is not active");
+        }
+        MatchPlayer reporter = players.findByMatchIdAndPlayerId(matchId, reporterId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Player is not in this match"));
+        if (reporter.bot()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "A bot cannot cancel a 5v5 lobby");
+        }
+        List<MatchPlayer> roster = players.findByMatchIdOrderByTeamAscPlayerIdAsc(matchId);
+        if (!match.cancelConfirmed()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "5v5 lobby could not be cancelled");
+        }
+        emitCancellation(match, List.of(), "CHAMP_SELECT_ABORTED");
+        announce(roster, "MATCH_CANCELLED");
+        return snapshot(match, roster);
+    }
+
+    @Transactional
     MatchSnapshot recordTrustedResult(UUID matchId, TeamSide winner) {
         return recordResultInternal(matchId, null, winner);
     }

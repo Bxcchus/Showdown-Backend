@@ -32,4 +32,10 @@ class TeamMatchWatcherController {
             @Valid @RequestBody TeamWatcherResultRequest request) {
         return watchers.observeResult(watcherToken, matchId, request);
     }
+
+    @PostMapping("/cancel")
+    void cancel(@PathVariable UUID matchId,
+            @RequestHeader("X-Watcher-Token") String watcherToken) {
+        watchers.cancel(watcherToken, matchId);
+    }
 }

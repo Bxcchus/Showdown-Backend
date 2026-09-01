@@ -121,6 +121,35 @@ class MatchApplicationServiceTest {
     }
 
     @Test
+    void cancelsAConfirmedTeamLobbyWithoutChangingRatings() throws Exception {
+        GameMatchRepository matches = mock(GameMatchRepository.class);
+        MatchPlayerRepository players = mock(MatchPlayerRepository.class);
+        MatchOutboxRepository outbox = mock(MatchOutboxRepository.class);
+        PlayerRatingRepository ratings = mock(PlayerRatingRepository.class);
+        RatingChangeRepository ratingChanges = mock(RatingChangeRepository.class);
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
+        GameMatch match = GameMatch.readyCheck(
+                UUID.randomUUID(), "EUW", "FIVE_V_FIVE", Instant.now(), Instant.now().plusSeconds(60));
+        match.confirm("SWD-CANCEL", "encrypted");
+        MatchPlayer reporter = MatchPlayer.readyCheck(
+                match.id(), UUID.randomUUID(), TeamSide.BLUE, false, LaneRole.MID);
+        var roster = java.util.List.of(reporter);
+        when(matches.findByIdForUpdate(match.id())).thenReturn(Optional.of(match));
+        when(players.findByMatchIdAndPlayerId(match.id(), reporter.playerId())).thenReturn(Optional.of(reporter));
+        when(players.findByMatchIdOrderByTeamAscPlayerIdAsc(match.id())).thenReturn(roster);
+        when(objectMapper.writeValueAsString(org.mockito.ArgumentMatchers.any())).thenReturn("{}");
+        MatchApplicationService service = new MatchApplicationService(
+                matches, players, outbox, ratings, ratingChanges, objectMapper, lobbyCredentials(), true);
+
+        MatchSnapshot result = service.cancelVerifiedTeamMatch(match.id(), reporter.playerId());
+
+        assertThat(result.status()).isEqualTo("CANCELLED");
+        verify(outbox).save(org.mockito.ArgumentMatchers.any(MatchOutboxEvent.class));
+        verify(ratings, never()).saveAll(org.mockito.ArgumentMatchers.any());
+        verify(ratingChanges, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void recordsAResultAndRatesOnlyTheHumanPlayerOnce() {
         GameMatchRepository matches = mock(GameMatchRepository.class);
         MatchPlayerRepository players = mock(MatchPlayerRepository.class);
