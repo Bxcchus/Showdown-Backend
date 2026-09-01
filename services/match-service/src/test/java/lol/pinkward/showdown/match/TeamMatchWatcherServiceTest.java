@@ -46,7 +46,8 @@ class TeamMatchWatcherServiceTest {
         when(fixture.results.findAllByMatchId(fixture.match.id())).thenReturn(List.of(blueReport, redReport));
         fixture.stubIdentities();
         TeamWatcherResultRequest request = new TeamWatcherResultRequest(
-                TeamSide.BLUE, "123456", fixture.puuids(), fixture.champions("Jinx"), NOW);
+                TeamSide.BLUE, "123456", fixture.puuids(), fixture.champions("Jinx"),
+                fixture.performances(), NOW);
 
         TeamWatcherResultResponse response = fixture.service.observeResult(rawToken, fixture.match.id(), request);
 
@@ -54,6 +55,8 @@ class TeamMatchWatcherServiceTest {
         verify(fixture.matchService).recordVerifiedTeamResult(fixture.match.id(), red, TeamSide.BLUE);
         verify(fixture.tokens).findAllByMatchId(fixture.match.id());
         assertThat(fixture.roster).allMatch(player -> "Jinx".equals(player.championName()));
+        assertThat(fixture.roster).allMatch(player -> Integer.valueOf(7).equals(player.kills()));
+        assertThat(fixture.roster).allMatch(player -> player.itemIds().equals(List.of(3006, 3031)));
     }
 
     @Test
@@ -76,7 +79,7 @@ class TeamMatchWatcherServiceTest {
         TeamWatcherResultResponse response = fixture.service.observeResult(
                 rawToken, fixture.match.id(),
                 new TeamWatcherResultRequest(
-                        TeamSide.RED, "same-game", fixture.puuids(), fixture.champions("Ahri"), NOW));
+                        TeamSide.RED, "same-game", fixture.puuids(), fixture.champions("Ahri"), null, NOW));
 
         assertThat(response.status()).isEqualTo("REVIEW_REQUIRED");
         verify(fixture.matchService, never()).recordVerifiedTeamResult(any(), any(), any());
@@ -184,6 +187,13 @@ class TeamMatchWatcherServiceTest {
         List<TeamWatcherChampion> champions(String championName) {
             return roster.stream()
                     .map(player -> new TeamWatcherChampion(puuids.get(player.playerId()), championName))
+                    .toList();
+        }
+
+        List<TeamWatcherPerformance> performances() {
+            return roster.stream()
+                    .map(player -> new TeamWatcherPerformance(
+                            puuids.get(player.playerId()), 7, 2, 5, List.of(3006, 3031)))
                     .toList();
         }
     }

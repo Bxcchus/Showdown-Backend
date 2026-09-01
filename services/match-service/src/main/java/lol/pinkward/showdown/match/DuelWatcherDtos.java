@@ -2,8 +2,11 @@ package lol.pinkward.showdown.match;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 record WatcherTokenResponse(String token, UUID matchId, String role, Instant expiresAt) {}
@@ -14,5 +17,9 @@ record WatcherStateResponse(UUID matchId, String state, Instant expiresAt) {}
 record WatcherStateRequest(@NotBlank String state) {}
 record WatcherObservationRequest(@NotNull DuelObjective objective, @NotBlank String winnerRiotId,
         @Size(max = 64) String championName,
+        @Min(0) @Max(999) Integer kills,
+        @Min(0) @Max(999) Integer deaths,
+        @Min(0) @Max(999) Integer assists,
+        @Size(max = 7) List<@Min(1) @Max(999999) Integer> itemIds,
         @NotNull Instant observedAt) {}
 record WatcherObservationResponse(String status, DuelObjective objective, UUID winnerPlayerId) {}

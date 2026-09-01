@@ -144,6 +144,7 @@ class TeamMatchWatcherService {
             throw conflict("Verified League roster does not match the assigned human roster");
         }
         recordChampions(roster, expectedPuuids, request.champions());
+        recordPerformances(roster, expectedPuuids, request.performances());
         TeamMatchWatcherResult prior = results.findByMatchIdAndReporterId(matchId, reporter.playerId()).orElse(null);
         if (prior != null && (prior.winningTeam() != request.winningTeam()
                 || !prior.gameId().equals(gameId))) {
@@ -231,6 +232,29 @@ class TeamMatchWatcherService {
         roster.stream().filter(player -> !player.bot()).forEach(player -> {
             String puuid = identities.resolve(player.playerId()).puuid().trim();
             player.recordChampion(byPuuid.get(puuid));
+        });
+    }
+
+    private void recordPerformances(
+            List<MatchPlayer> roster,
+            Set<String> expectedPuuids,
+            List<TeamWatcherPerformance> performances) {
+        if (performances == null || performances.isEmpty()) return;
+        Map<String, TeamWatcherPerformance> byPuuid = new HashMap<>();
+        for (TeamWatcherPerformance performance : performances) {
+            String puuid = performance.puuid().trim();
+            if (byPuuid.put(puuid, performance) != null) {
+                throw conflict("Duplicate performance entry for a League player");
+            }
+        }
+        if (!byPuuid.keySet().equals(expectedPuuids)) {
+            throw conflict("Performance roster does not match the verified League roster");
+        }
+        roster.stream().filter(player -> !player.bot()).forEach(player -> {
+            String puuid = identities.resolve(player.playerId()).puuid().trim();
+            TeamWatcherPerformance performance = byPuuid.get(puuid);
+            player.recordPerformance(
+                    performance.kills(), performance.deaths(), performance.assists(), performance.itemIds());
         });
     }
 

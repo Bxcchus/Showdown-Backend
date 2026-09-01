@@ -104,6 +104,7 @@ class DuelWatcherService {
         MatchPlayer reporter = players.findByMatchIdAndPlayerId(matchId, token.playerId())
                 .orElseThrow(() -> forbidden("Watcher player is not in this duel"));
         reporter.recordChampion(request.championName());
+        reporter.recordPerformance(request.kills(), request.deaths(), request.assists(), request.itemIds());
         DuelChallenge challenge = challenges.findByMatchId(matchId)
                 .orElseThrow(() -> notFound("Duel invitation not found"));
         UUID winnerId = playerForRiotId(challenge, request.winnerRiotId());

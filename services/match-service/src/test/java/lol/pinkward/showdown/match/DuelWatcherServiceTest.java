@@ -13,6 +13,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -94,7 +95,8 @@ class DuelWatcherServiceTest {
         when(fixture.observations.countByMatchIdAndObjectiveAndWinnerPlayerId(
                 fixture.match.id(), DuelObjective.FIRST_BLOOD, fixture.host)).thenReturn(1L);
         WatcherObservationRequest request = new WatcherObservationRequest(
-                DuelObjective.FIRST_BLOOD, "Claude Code#JAVA", "Draven", NOW);
+                DuelObjective.FIRST_BLOOD, "Claude Code#JAVA", "Draven",
+                1, 0, 0, List.of(1055), NOW);
 
         assertThat(fixture.service.observe(rawToken, fixture.match.id(), request).status())
                 .isEqualTo("WAITING_FOR_SECOND_WATCHER");
@@ -103,6 +105,8 @@ class DuelWatcherServiceTest {
         verify(fixture.observations, never()).save(any());
         verify(fixture.matchService, never()).recordVerifiedDuelResult(any(), any(), any());
         assertThat(fixture.hostPlayer.championName()).isEqualTo("Draven");
+        assertThat(fixture.hostPlayer.kills()).isEqualTo(1);
+        assertThat(fixture.hostPlayer.itemIds()).containsExactly(1055);
     }
 
     @Test

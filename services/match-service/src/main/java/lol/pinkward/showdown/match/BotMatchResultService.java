@@ -54,6 +54,7 @@ class BotMatchResultService {
         }
         BotRoster roster = activeBotDuel(matchId);
         roster.human().recordChampion(request.championName());
+        roster.human().recordPerformance(request.kills(), request.deaths(), request.assists(), request.itemIds());
         TeamSide winner = request.humanWon() ? roster.human().team() : roster.bot().team();
         return matchService.recordTrustedResult(matchId, winner);
     }
