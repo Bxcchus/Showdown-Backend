@@ -53,6 +53,7 @@ class BotMatchResultService {
                     HttpStatus.BAD_REQUEST, "Bot result observation is outside the accepted time window");
         }
         BotRoster roster = activeBotDuel(matchId);
+        roster.human().recordChampion(request.championName());
         TeamSide winner = request.humanWon() ? roster.human().team() : roster.bot().team();
         return matchService.recordTrustedResult(matchId, winner);
     }

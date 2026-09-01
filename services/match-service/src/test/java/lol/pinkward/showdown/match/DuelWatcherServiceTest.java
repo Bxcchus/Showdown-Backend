@@ -94,7 +94,7 @@ class DuelWatcherServiceTest {
         when(fixture.observations.countByMatchIdAndObjectiveAndWinnerPlayerId(
                 fixture.match.id(), DuelObjective.FIRST_BLOOD, fixture.host)).thenReturn(1L);
         WatcherObservationRequest request = new WatcherObservationRequest(
-                DuelObjective.FIRST_BLOOD, "Claude Code#JAVA", NOW);
+                DuelObjective.FIRST_BLOOD, "Claude Code#JAVA", "Draven", NOW);
 
         assertThat(fixture.service.observe(rawToken, fixture.match.id(), request).status())
                 .isEqualTo("WAITING_FOR_SECOND_WATCHER");
@@ -102,6 +102,7 @@ class DuelWatcherServiceTest {
                 .isEqualTo("WAITING_FOR_SECOND_WATCHER");
         verify(fixture.observations, never()).save(any());
         verify(fixture.matchService, never()).recordVerifiedDuelResult(any(), any(), any());
+        assertThat(fixture.hostPlayer.championName()).isEqualTo("Draven");
     }
 
     @Test
@@ -159,6 +160,7 @@ class DuelWatcherServiceTest {
         final DuelIdentityClient identities = mock(DuelIdentityClient.class);
         final GameMatch match;
         final DuelChallenge challenge;
+        final MatchPlayer hostPlayer;
         final DuelWatcherService service;
 
         Fixture() {
@@ -168,7 +170,9 @@ class DuelWatcherServiceTest {
             challenge = DuelChallenge.pending(
                     host, guest, "Claude Code#JAVA", "Codex#GPT", "EUW", NOW, NOW.plusSeconds(90));
             challenge.accept(match.id(), NOW);
+            hostPlayer = MatchPlayer.readyCheck(match.id(), host, TeamSide.BLUE, false, LaneRole.MID);
             when(matches.findById(match.id())).thenReturn(Optional.of(match));
+            when(players.findByMatchIdAndPlayerId(match.id(), host)).thenReturn(Optional.of(hostPlayer));
             service = new DuelWatcherService(
                     tokens, observations, challenges, matches, players, credentials,
                     matchService, realtime, identities, Duration.ofMinutes(2));

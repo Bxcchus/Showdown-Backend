@@ -46,13 +46,14 @@ class TeamMatchWatcherServiceTest {
         when(fixture.results.findAllByMatchId(fixture.match.id())).thenReturn(List.of(blueReport, redReport));
         fixture.stubIdentities();
         TeamWatcherResultRequest request = new TeamWatcherResultRequest(
-                TeamSide.BLUE, "123456", fixture.puuids(), NOW);
+                TeamSide.BLUE, "123456", fixture.puuids(), fixture.champions("Jinx"), NOW);
 
         TeamWatcherResultResponse response = fixture.service.observeResult(rawToken, fixture.match.id(), request);
 
         assertThat(response.status()).isEqualTo("VERIFIED");
         verify(fixture.matchService).recordVerifiedTeamResult(fixture.match.id(), red, TeamSide.BLUE);
         verify(fixture.tokens).findAllByMatchId(fixture.match.id());
+        assertThat(fixture.roster).allMatch(player -> "Jinx".equals(player.championName()));
     }
 
     @Test
@@ -74,7 +75,8 @@ class TeamMatchWatcherServiceTest {
 
         TeamWatcherResultResponse response = fixture.service.observeResult(
                 rawToken, fixture.match.id(),
-                new TeamWatcherResultRequest(TeamSide.RED, "same-game", fixture.puuids(), NOW));
+                new TeamWatcherResultRequest(
+                        TeamSide.RED, "same-game", fixture.puuids(), fixture.champions("Ahri"), NOW));
 
         assertThat(response.status()).isEqualTo("REVIEW_REQUIRED");
         verify(fixture.matchService, never()).recordVerifiedTeamResult(any(), any(), any());
@@ -177,6 +179,12 @@ class TeamMatchWatcherServiceTest {
 
         List<String> puuids() {
             return roster.stream().map(player -> puuids.get(player.playerId())).toList();
+        }
+
+        List<TeamWatcherChampion> champions(String championName) {
+            return roster.stream()
+                    .map(player -> new TeamWatcherChampion(puuids.get(player.playerId()), championName))
+                    .toList();
         }
     }
 }

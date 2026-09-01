@@ -589,6 +589,7 @@ class MatchApplicationService {
                 player.team() == match.winningTeam() ? "VICTORY" : "DEFEAT",
                 player.team().name(),
                 player.assignedRole().name(),
+                player.championName(),
                 match.completedAt(),
                 previous,
                 delta,

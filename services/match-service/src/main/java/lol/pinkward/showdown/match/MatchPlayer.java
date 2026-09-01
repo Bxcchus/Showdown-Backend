@@ -36,6 +36,9 @@ class MatchPlayer {
     @Column(name = "assigned_role", nullable = false, length = 16)
     private LaneRole assignedRole;
 
+    @Column(name = "champion_name", length = 64)
+    private String championName;
+
     protected MatchPlayer() {}
 
     static MatchPlayer pending(UUID matchId, UUID playerId, TeamSide team) {
@@ -61,10 +64,19 @@ class MatchPlayer {
         }
     }
 
+    void recordChampion(String championName) {
+        if (championName == null || championName.isBlank()) return;
+        String normalized = championName.trim();
+        if (this.championName == null || this.championName.equalsIgnoreCase(normalized)) {
+            this.championName = normalized;
+        }
+    }
+
     UUID matchId() { return matchId; }
     UUID playerId() { return playerId; }
     TeamSide team() { return team; }
     ReadyState readyState() { return readyState; }
     boolean bot() { return bot; }
     LaneRole assignedRole() { return assignedRole; }
+    String championName() { return championName; }
 }
