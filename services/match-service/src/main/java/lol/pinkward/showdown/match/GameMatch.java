@@ -76,6 +76,12 @@ class GameMatch {
         return true;
     }
 
+    boolean cancelConfirmed() {
+        if (status != MatchStatus.CONFIRMED) return false;
+        status = MatchStatus.CANCELLED;
+        return true;
+    }
+
     boolean expire() {
         if (status != MatchStatus.READY_CHECK) return false;
         status = MatchStatus.EXPIRED;

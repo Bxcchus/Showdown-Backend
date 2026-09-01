@@ -21,6 +21,9 @@ class TeamMatchWatcherService {
             "ISSUED", "LCU_CONNECTED", "LOBBY_CREATED", "INVITES_SENT", "JOINING", "JOINED",
             "ROSTER_VERIFIED", "CHAMP_SELECT_STARTED", "IN_GAME", "RESULT_RECORDED",
             "REVIEW_REQUIRED", "ERROR");
+    private static final Set<String> CANCELLABLE_STATES = Set.of(
+            "LCU_CONNECTED", "LOBBY_CREATED", "INVITES_SENT", "JOINING", "JOINED",
+            "ROSTER_VERIFIED", "CHAMP_SELECT_STARTED");
 
     private final DuelWatcherTokenRepository tokens;
     private final TeamMatchWatcherResultRepository results;
@@ -172,6 +175,18 @@ class TeamMatchWatcherService {
         tokens.findAllByMatchId(matchId).forEach(value -> value.revoke(now));
         publish(roster, "TEAM_RESULT_VERIFIED");
         return new TeamWatcherResultResponse("VERIFIED", request.winningTeam(), gameId);
+    }
+
+    @Transactional
+    void cancel(String rawToken, UUID matchId) {
+        DuelWatcherToken token = authenticate(rawToken, matchId);
+        teamMatch(matchId);
+        if (!CANCELLABLE_STATES.contains(token.state())) {
+            throw conflict("The 5v5 lobby can only be cancelled before the game starts");
+        }
+        matchService.cancelVerifiedTeamMatch(matchId, token.playerId());
+        Instant now = clock.instant();
+        tokens.findAllByMatchId(matchId).forEach(value -> value.revoke(now));
     }
 
     private DuelWatcherToken authenticate(String rawToken, UUID matchId) {
