@@ -1,6 +1,7 @@
 package lol.pinkward.showdown.match;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 record MatchHistoryEntry(
@@ -11,6 +12,10 @@ record MatchHistoryEntry(
         String team,
         String role,
         String championName,
+        Integer kills,
+        Integer deaths,
+        Integer assists,
+        List<Integer> itemIds,
         Instant playedAt,
         int previousMmr,
         int mmrDelta,
