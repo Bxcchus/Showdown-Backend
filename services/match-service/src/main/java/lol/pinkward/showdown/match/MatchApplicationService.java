@@ -325,6 +325,28 @@ class MatchApplicationService {
     }
 
     @Transactional
+    MatchSnapshot cancelVerifiedBotMatch(UUID matchId) {
+        GameMatch match = matches.findByIdForUpdate(matchId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Match not found"));
+        if (!"ONE_V_ONE".equals(match.mode()) || match.status() != MatchStatus.CONFIRMED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bot duel lobby is not active");
+        }
+        List<MatchPlayer> roster = players.findByMatchIdOrderByTeamAscPlayerIdAsc(matchId);
+        long humans = roster.stream().filter(player -> !player.bot()).count();
+        long bots = roster.stream().filter(MatchPlayer::bot).count();
+        if (roster.size() != 2 || humans != 1 || bots != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Expected exactly one human and one bot");
+        }
+        if (!match.cancelConfirmed()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bot duel lobby could not be cancelled");
+        }
+        emitCancellation(match, List.of(), "CHAMP_SELECT_ABORTED");
+        announce(roster, "MATCH_CANCELLED");
+        return snapshot(match, roster);
+    }
+
+    @Transactional
     MatchSnapshot recordTrustedResult(UUID matchId, TeamSide winner) {
         return recordResultInternal(matchId, null, winner);
     }

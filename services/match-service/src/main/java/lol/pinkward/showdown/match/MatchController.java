@@ -151,6 +151,12 @@ class MatchController {
         return botResults.record(matchId, result);
     }
 
+    @PostMapping("/{matchId}/bot-cancel")
+    @PreAuthorize("hasAuthority('SCOPE_service:match:bot-result')")
+    MatchSnapshot cancelBotMatch(@PathVariable UUID matchId) {
+        return botResults.cancel(matchId);
+    }
+
     private static UUID playerId(Jwt jwt) {
         try {
             return UUID.fromString(jwt.getSubject());
